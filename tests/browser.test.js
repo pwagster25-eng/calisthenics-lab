@@ -265,6 +265,7 @@ const V1_SEED = {
     assert.ok(await page.evaluate(() => !!localStorage.getItem('calisthenics-v2-preimport')), 'pre-import snapshot saved');
   });
   await step('v2: crafted backup cannot inject markup', async () => {
+    await page.evaluate(() => { document.getElementById('importNote').textContent = ''; });
     const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click('#import')]);
     await chooser.setFiles({ name: 'evil.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ sets: { '1-0-m-1': [{ reps: '<img id="pwned2" src=x>' }, { reps: 7 }] }, prs: { 1: '<b id="pwned3">' } })) });
     await page.waitForFunction(() => /Imported/.test(document.getElementById('importNote').textContent));
