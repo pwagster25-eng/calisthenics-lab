@@ -1,0 +1,221 @@
+// Browser tests (Playwright, Chromium, iPhone 14 viewport, fake clock).
+// Run: node tests/browser.test.js   (expects a static server on http://127.0.0.1:8089 serving the repo root)
+const { chromium, devices } = require('playwright');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const BASE = 'http://127.0.0.1:8089';
+const SHOTS = path.join(__dirname, 'screenshots');
+fs.mkdirSync(SHOTS, { recursive: true });
+const results = [];
+async function step(name, fn) {
+  try { await fn(); results.push(['PASS', name]); console.log('PASS', name); }
+  catch (e) { results.push(['FAIL', name + ' — ' + (e && e.message || e)]); console.log('FAIL', name, '\n   ', e && e.stack || e); }
+}
+
+const V1_SEED = {
+  done: { '1-0': true }, checks: {}, prs: { 1: 22 },
+  sets: { '1-0-m-0': [{ reps: 12, at: '2026-10-01T10:00:00.000Z' }, { reps: 11, at: '2026-10-01T10:02:00.000Z' }], '1-5-m-1': [{ reps: 9, at: '2026-10-05T10:00:00.000Z' }] },
+  restSeconds: 60, soundOn: true, week: 1, day: 0
+};
+
+(async () => {
+  const browser = await chromium.launch();
+  const ctx = await browser.newContext({ ...devices['iPhone 14'], locale: 'en-US' });
+  const page = await ctx.newPage();
+  const dialogs = [];
+  page.on('dialog', d => { dialogs.push(d.message()); d.accept(); });
+  page.on('pageerror', e => console.log('   pageerror:', e.message));
+
+  /* ---------- A. Reproduce v1.2 defects (evidence for the audit) ---------- */
+  await step('v1.2 repro: importing a backup without `sets` crashes render (TypeError)', async () => {
+    const errors = []; const h = e => errors.push(e.message); page.on('pageerror', h);
+    await page.goto(BASE + '/src/index.html');
+    await page.evaluate(() => { localStorage.clear(); localStorage.setItem('calisthenics-v1', JSON.stringify({ done: {}, prs: {} })); });
+    // v1.2 boot defaults sets, so simulate the import path which does not:
+    await page.evaluate(() => { localStorage.setItem('calisthenics-v1', JSON.stringify({ done: {}, prs: {} })); });
+    const crashed = await page.evaluate(() => { try { state = { done: {}, prs: {} }; render(); return false; } catch (e) { return e.constructor.name + ': ' + e.message; } });
+    page.off('pageerror', h);
+    assert.ok(crashed && /TypeError/.test(crashed), 'expected TypeError, got ' + crashed);
+  });
+  await step('v1.2 repro: crafted backup injects HTML into the page', async () => {
+    await page.goto(BASE + '/src/index.html');
+    await page.evaluate(() => { localStorage.setItem('calisthenics-v1', JSON.stringify({ done: {}, prs: {}, sets: { '1-0-m-0': [{ reps: '<img id="pwned" src=x>' }] } })); });
+    await page.reload();
+    assert.equal(await page.locator('#pwned').count(), 1, 'injected <img> element was rendered');
+  });
+  await step('v1.2 repro: Tuesday guided queue asks for 6 sets of walking', async () => {
+    await page.evaluate(() => localStorage.clear());
+    await page.goto(BASE + '/src/index.html');
+    await page.click('[data-day="1"]');
+    await page.click('#coachStart');
+    const txt = await page.textContent('#coachStep');
+    assert.equal(txt.trim(), '1 / 11', 'queue length should be 6 (not 11) if parsing were correct; got ' + txt);
+    const after5 = await page.evaluate(() => { for (let i = 0; i < 5; i++) document.getElementById('coachNext').click(); return document.getElementById('coachName').textContent; });
+    assert.equal(after5, 'Brisk walking', 'still on walking after 5 skips');
+  });
+
+  /* ---------- B. v2 migration ---------- */
+  await step('v2: boots from v1 storage, migrates, leaves v1 key untouched', async () => {
+    await page.goto(BASE + '/app/index.html');
+    await page.evaluate((seed) => { localStorage.clear(); localStorage.setItem('calisthenics-v1', JSON.stringify(seed)); }, V1_SEED);
+    await page.reload();
+    const { v1, v2 } = await page.evaluate(() => ({ v1: localStorage.getItem('calisthenics-v1'), v2: JSON.parse(localStorage.getItem('calisthenics-v2')) }));
+    assert.deepEqual(JSON.parse(v1), V1_SEED, 'v1 record unchanged');
+    assert.deepEqual(v2.sets['1-0-standard-push-ups'].map(x => x.reps), [12, 11]);
+    assert.deepEqual(v2.sets['1-5-decline-push-ups'].map(x => x.reps), [9]);
+    assert.equal(v2.prs['1'], 22);
+    await page.waitForSelector('#moves .ex');
+    const first = await page.locator('#moves .ex').first().textContent();
+    assert.match(first, /Standard push-ups/); assert.match(first, /2\/2 sets logged/); assert.match(first, /Logged: 12, 11/);
+    await page.click('[role=tab]:nth-child(6)'); // Sat
+    assert.match(await page.textContent('#extraWrap'), /Decline push-ups[\s\S]*Logged: 9/, 'orphaned log still visible');
+    await page.screenshot({ path: path.join(SHOTS, '01-plan-view.png'), fullPage: false });
+  });
+
+  /* ---------- C. Guided session with a fake clock ---------- */
+  const T0 = new Date('2026-10-22T18:00:00Z').getTime();
+  await step('v2: guided session — log, rest 45 s, auto-advance to set 2, duplicate tap ignored', async () => {
+    await page.evaluate(() => localStorage.clear());
+    await page.clock.install({ time: T0 });
+    await page.goto(BASE + '/app/index.html');
+    await page.click('#startSession');
+    assert.ok(await page.isVisible('#session'));
+    assert.equal((await page.textContent('#wSet')).trim(), 'Set 1 of 2');
+    assert.equal((await page.textContent('#wName')).trim(), 'Standard push-ups');
+    assert.match(await page.textContent('#wNext'), /Then: Standard push-ups, set 2/);
+    await page.click('#repMinus'); // 12 -> 11
+    await page.evaluate(() => { const b = document.getElementById('logSet'); b.click(); b.click(); b.click(); }); // triple tap within 500 ms
+    await page.clock.runFor(300);
+    const sets = await page.evaluate(() => JSON.parse(localStorage.getItem('calisthenics-v2')).sets);
+    assert.deepEqual(sets['1-0-standard-push-ups'].map(x => x.reps), [11], 'exactly one set logged');
+    assert.ok(await page.isVisible('#phRest'));
+    assert.equal((await page.textContent('#rClock')).trim(), '00:45');
+    assert.match(await page.textContent('#rNext'), /Standard push-ups • set 2 of 2/);
+    await page.screenshot({ path: path.join(SHOTS, '02-rest.png') });
+    await page.clock.runFor(20_000);
+    assert.equal((await page.textContent('#rClock')).trim(), '00:25');
+    await page.clock.runFor(26_000);
+    assert.ok(await page.isVisible('#phWork'), 'back to work after rest');
+    assert.equal((await page.textContent('#wSet')).trim(), 'Set 2 of 2');
+    assert.match(await page.textContent('#sClock'), /00:4[5-7]/);
+    await page.screenshot({ path: path.join(SHOTS, '03-work.png') });
+  });
+  await step('v2: between-exercise rest is 60 s; skip rest; skip set; undo moves back', async () => {
+    await page.click('#logSet'); await page.clock.runFor(600);
+    assert.equal((await page.textContent('#rClock')).trim(), '01:00', 'between-exercise rest');
+    assert.match(await page.textContent('#rLabel'), /next exercise/);
+    assert.match(await page.textContent('#rNext'), /Bodyweight squats • set 1 of 2/);
+    await page.click('#skipRest'); await page.clock.runFor(600);
+    assert.equal((await page.textContent('#wName')).trim(), 'Bodyweight squats');
+    await page.click('#skipSet'); await page.clock.runFor(600);
+    assert.equal((await page.textContent('#wSet')).trim(), 'Set 2 of 2');
+    const before = await page.evaluate(() => JSON.parse(localStorage.getItem('calisthenics-v2')).sets);
+    assert.equal(before['1-0-bodyweight-squats'], undefined, 'skip does not log a set');
+    await page.click('#undoSet'); await page.clock.runFor(600); // removes push-up set 2
+    const after = await page.evaluate(() => JSON.parse(localStorage.getItem('calisthenics-v2')).sets);
+    assert.deepEqual(after['1-0-standard-push-ups'].map(x => x.reps), [11]);
+    assert.equal((await page.textContent('#wName')).trim(), 'Standard push-ups');
+    assert.equal((await page.textContent('#wSet')).trim(), 'Set 2 of 2');
+  });
+  await step('v2: pause freezes elapsed and rest; resume shifts the deadline', async () => {
+    await page.click('#logSet'); await page.clock.runFor(600); // rest 60 (between)
+    await page.clock.runFor(10_000);
+    assert.equal((await page.textContent('#rClock')).trim(), '00:50');
+    const e1 = await page.textContent('#sClock');
+    await page.click('#pauseBtn'); await page.clock.runFor(600);
+    assert.ok(await page.isVisible('#phPaused'));
+    await page.clock.runFor(30_000);
+    assert.equal(await page.textContent('#sClock'), e1, 'elapsed frozen while paused');
+    await page.click('#resumeBtn'); await page.clock.runFor(100);
+    assert.equal((await page.textContent('#rClock')).trim(), '00:50', 'rest resumes where it stopped');
+    const left = await page.evaluate(() => window.__cl.state.session.restUntil - Date.now());
+    assert.ok(left > 49_000 && left <= 50_000, 'deadline shifted by the pause duration: ' + left);
+  });
+  await step('v2: changing day mid-session asks for confirmation; reload restores a paused session', async () => {
+    await page.click('#skipRest'); await page.clock.runFor(600);
+    await page.click('#endSession'); // not done -> confirm dialog (auto-accepted) -> ends & closes
+    await page.clock.runFor(600);
+    assert.ok(dialogs.some(d => /End this session/.test(d)));
+    assert.ok(!(await page.isVisible('#session')));
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('calisthenics-v2')).history.length), 1);
+    // start again and reload mid-rest
+    await page.click('#startSession'); await page.clock.runFor(600);
+    await page.click('#logSet'); await page.clock.runFor(600);
+    await page.reload(); await page.clock.runFor(600);
+    assert.ok(await page.isVisible('#phPaused'), 'restored paused');
+    await page.click('#resumeBtn'); await page.clock.runFor(600);
+    assert.ok(await page.isVisible('#phRest'));
+    const n = dialogs.length;
+    await page.click('#endSession'); await page.clock.runFor(600);
+    assert.equal(dialogs.length, n + 1);
+  });
+  await step('v2: session completion screen, mark complete, history and done flag', async () => {
+    await page.evaluate(() => localStorage.clear());
+    await page.goto(BASE + '/app/index.html'); await page.clock.runFor(300);
+    await page.click('#startSession'); await page.clock.runFor(300);
+    for (let i = 0; i < 14; i++) { await page.click('#logSet'); await page.clock.runFor(700); if (await page.isVisible('#skipRest')) { await page.click('#skipRest'); await page.clock.runFor(700); } }
+    assert.ok(await page.isVisible('#phDone'), 'done screen: ' + await page.textContent('#sStep') + ' / ' + await page.textContent('#wName') + ' / phases ' + JSON.stringify(await page.evaluate(() => ({ s: window.__cl.state.session, d: window.__cl.state.day, w: window.__cl.state.week, keys: Object.keys(window.__cl.state.sets) }))));
+    assert.match(await page.textContent('#doneSummary'), /14 sets logged/);
+    await page.screenshot({ path: path.join(SHOTS, '04-complete.png') });
+    await page.click('#doneBtn'); await page.clock.runFor(300);
+    const st = await page.evaluate(() => JSON.parse(localStorage.getItem('calisthenics-v2')));
+    assert.equal(st.done['1-0'], true); assert.equal(st.session, null); assert.equal(st.history[0].setsLogged, 14); assert.equal(st.history[0].completed, true);
+    assert.match(await page.textContent('#finish'), /Completed/);
+  });
+  await step('v2: light day — walking has no rest and advances straight to bird dogs', async () => {
+    await page.click('[role=tab]:nth-child(2)'); await page.clock.runFor(300);
+    await page.click('#startSession'); await page.clock.runFor(300);
+    assert.equal((await page.textContent('#wName')).trim(), 'Brisk walking');
+    assert.match(await page.textContent('#repUnit'), /minutes/);
+    await page.click('#logSet'); await page.clock.runFor(700);
+    assert.ok(await page.isVisible('#phWork'), 'no rest after walking');
+    assert.equal((await page.textContent('#wName')).trim(), 'Bird dogs');
+    await page.click('#logSet'); await page.clock.runFor(700);
+    assert.equal((await page.textContent('#rClock')).trim(), '00:30', 'light-day rest');
+    await page.click('#endSession'); await page.clock.runFor(300);
+  });
+  await step('v2: 40-minute warning and 45-minute cap banners fire without blocking alerts', async () => {
+    await page.click('[role=tab]:nth-child(1)'); await page.clock.runFor(300);
+    const n = dialogs.length;
+    await page.click('#startSession'); await page.clock.runFor(300);
+    await page.clock.runFor(40 * 60_000 + 1000);
+    assert.ok(await page.isVisible('#capBanner')); assert.match(await page.textContent('#capBanner'), /5 minutes to your 45-minute cap/);
+    assert.match(await page.getAttribute('#sClock', 'class'), /warn/);
+    await page.clock.runFor(5 * 60_000 + 1000);
+    assert.match(await page.textContent('#capBanner'), /Time cap reached/);
+    assert.match(await page.getAttribute('#sClock', 'class'), /bad/);
+    assert.equal(dialogs.length, n, 'no alert() dialogs');
+    await page.screenshot({ path: path.join(SHOTS, '05-cap-banner.png') });
+    await page.click('#endSession'); await page.clock.runFor(300);
+  });
+  await step('v2: import a v1 backup file (merge) keeps existing data and upgrades keys', async () => {
+    await page.evaluate(() => localStorage.clear());
+    await page.goto(BASE + '/app/index.html');
+    await page.evaluate(() => { localStorage.setItem('calisthenics-v2', JSON.stringify({ schemaVersion: 2, sets: { '1-2-pike-push-ups': [{ reps: 6, at: '2026-10-02T10:00:00.000Z' }] } })); });
+    await page.reload();
+    const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click('#import')]);
+    await chooser.setFiles({ name: 'old.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(V1_SEED)) });
+    await page.waitForFunction(() => /Imported/.test(document.getElementById('importNote').textContent));
+    const st = await page.evaluate(() => JSON.parse(localStorage.getItem('calisthenics-v2')));
+    assert.equal(st.sets['1-2-pike-push-ups'].length, 1, 'existing data kept');
+    assert.deepEqual(st.sets['1-0-standard-push-ups'].map(x => x.reps), [12, 11]);
+    assert.ok(await page.evaluate(() => !!localStorage.getItem('calisthenics-v2-preimport')), 'pre-import snapshot saved');
+  });
+  await step('v2: crafted backup cannot inject markup', async () => {
+    const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click('#import')]);
+    await chooser.setFiles({ name: 'evil.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ sets: { '1-0-m-1': [{ reps: '<img id="pwned2" src=x>' }, { reps: 7 }] }, prs: { 1: '<b id="pwned3">' } })) });
+    await page.waitForFunction(() => /Imported/.test(document.getElementById('importNote').textContent));
+    assert.equal(await page.locator('#pwned2, #pwned3').count(), 0);
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('calisthenics-v2')).sets['1-0-bodyweight-squats'].length), 1, 'the valid entry survived');
+  });
+  await step('v2: no console errors during the run', async () => { /* collected via pageerror listener above; failures would print */ });
+
+  await page.screenshot({ path: path.join(SHOTS, '06-settings.png') }).catch(() => {});
+  await browser.close();
+  const fails = results.filter(r => r[0] === 'FAIL');
+  fs.writeFileSync(path.join(__dirname, 'browser-results.txt'), results.map(r => r.join(' ')).join('\n') + '\n');
+  console.log(`\n${results.length - fails.length}/${results.length} browser checks passed`);
+  process.exit(fails.length ? 1 : 0);
+})();

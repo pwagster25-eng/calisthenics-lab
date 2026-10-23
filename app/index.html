@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f1726">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Calisthenics Lab">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<title>Calisthenics Lab</title>
+<style>
+:root{--bg:#0f1726;--panel:#172238;--line:#2a3a55;--text:#eaf0fb;--muted:#a3b2c7;--accent:#7fb0ff;--accent-ink:#071327;--good:#7fe0a9;--warn:#ffcf6b;--bad:#ff8a80;--rest:#2a4a66;--safe-b:env(safe-area-inset-bottom,0px);--safe-t:env(safe-area-inset-top,0px);font-family:system-ui,-apple-system,"SF Pro Text",sans-serif;color:var(--text);background:var(--bg);-webkit-text-size-adjust:100%}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg)}body{overscroll-behavior-y:none}
+main{max-width:720px;margin:auto;padding:calc(14px + var(--safe-t)) 16px calc(40px + var(--safe-b))}
+h1{font-size:28px;margin:4px 0;letter-spacing:-.01em}h2{font-size:19px;margin:0 0 6px}h3{font-size:15px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 6px}
+p{line-height:1.45}.muted{color:var(--muted)}.small{font-size:13px}
+button{border:0;border-radius:12px;background:#2b3d5a;color:#fff;padding:0 14px;min-height:46px;font:inherit;font-weight:650;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+button:disabled{opacity:.45}button.primary{background:var(--accent);color:var(--accent-ink)}button.ghost{background:transparent;border:1px solid var(--line)}button.danger{background:#5a2b33}
+select,input[type=number]{font:inherit;background:#1e2b44;color:#fff;border:1px solid #3a4e70;border-radius:10px;padding:10px;min-height:44px}
+input[type=number]{width:84px;text-align:center;font-variant-numeric:tabular-nums}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;margin:14px 0}
+.row{display:flex;justify-content:space-between;align-items:center;gap:12px}.wrap{flex-wrap:wrap}
+.tag{background:#24364f;border-radius:20px;padding:6px 11px;font-size:12px;font-weight:600;white-space:nowrap}
+.tag.good{background:#1f4a35;color:var(--good)}.tag.warn{background:#4a3a1f;color:var(--warn)}
+.days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin:12px 0}
+.days button{padding:0;min-height:52px;font-size:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:#1e2b44}
+.days button.active{background:var(--accent);color:var(--accent-ink)}.days .dot{font-size:11px;line-height:1}
+.bar{height:8px;background:#2b3b56;border-radius:10px;overflow:hidden}.fill{height:100%;background:var(--accent);transition:width .25s}
+.ex{padding:12px 0;border-bottom:1px solid var(--line)}.ex:last-child{border:0}
+.ex .name{font-weight:700;font-size:16px}.ex .rx{color:var(--muted);font-size:13px;margin-top:2px}
+.ex .hint{color:var(--warn);font-size:13px;margin-top:4px}.ex .cue{color:var(--muted);font-size:13px;margin-top:6px;display:none}.ex.open .cue{display:block}
+.dots{display:flex;gap:4px;margin:8px 0 6px}.dots span{width:12px;height:12px;border-radius:50%;background:#2b3b56;border:1px solid #3d5176}.dots span.on{background:var(--good);border-color:var(--good)}
+.logline{display:flex;align-items:center;gap:8px;margin-top:6px}.logline .spacer{flex:1}
+.logline button{min-height:44px}
+.logged{font-size:13px;color:var(--good);margin-top:6px}
+.stack{display:grid;gap:8px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+details{padding:10px 0;border-bottom:1px solid var(--line)}summary{cursor:pointer;font-weight:650;min-height:32px;display:flex;align-items:center}
+footer{font-size:12px;color:#8ea0ba;line-height:1.5;margin-top:24px}
+.setting{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}.setting:last-child{border:0}
+.switch{width:52px;height:32px;border-radius:16px;background:#3a4e70;position:relative;flex:none;min-height:32px;padding:0}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;transition:left .15s}
+.switch[aria-checked=true]{background:var(--good)}.switch[aria-checked=true]::after{left:23px}
+.sheet{position:fixed;inset:0;background:#0f1726f2;z-index:40;overflow:auto;padding:calc(14px + var(--safe-t)) 16px calc(24px + var(--safe-b));display:none}.sheet.show{display:block}
+.sheet .inner{max-width:720px;margin:auto}
+/* ---- guided session overlay ---- */
+#session{position:fixed;inset:0;background:var(--bg);z-index:30;display:none;flex-direction:column;padding-top:var(--safe-t)}
+#session.show{display:flex}
+#session.rest{background:#13263a}#session.paused{background:#1a1f2b}#session.complete{background:#122a22}
+.sbar{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;gap:10px}
+.sbar .clock{font-variant-numeric:tabular-nums;font-weight:800;font-size:22px}.sbar .clock.warn{color:var(--warn)}.sbar .clock.bad{color:var(--bad)}
+.sbody{flex:1;overflow:auto;padding:4px 20px 16px;display:flex;flex-direction:column;gap:10px;justify-content:center;text-align:center}
+.label{color:var(--muted);font-size:14px;text-transform:uppercase;letter-spacing:.08em}
+.exname{font-size:34px;font-weight:800;line-height:1.1;letter-spacing:-.01em}
+.target{font-size:20px;color:#cfe0ff}.cue{font-size:14px;color:var(--muted);max-width:420px;margin:auto}
+.hintline{color:var(--warn);font-size:14px}
+.bigclock{font-size:88px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1;margin:6px 0}
+.ring{width:220px;height:220px;margin:auto;position:relative}.ring svg{transform:rotate(-90deg)}.ring .bigclock{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:64px;margin:0}
+.stepper{display:flex;align-items:center;justify-content:center;gap:14px;margin:6px 0}
+.stepper button{width:64px;height:64px;min-height:64px;border-radius:50%;font-size:30px;padding:0}
+.stepper .val{font-size:48px;font-weight:800;min-width:96px;font-variant-numeric:tabular-nums}
+.stepper .unit{display:block;font-size:13px;color:var(--muted);font-weight:500}
+.next{background:#1c2a44;border:1px solid var(--line);border-radius:14px;padding:10px 14px;font-size:14px;color:#cfe0ff}
+.banner{margin:0 16px;padding:10px 14px;border-radius:12px;background:#4a3a1f;color:var(--warn);font-size:14px;font-weight:600;display:none}.banner.show{display:block}.banner.bad{background:#5a2b33;color:var(--bad)}
+.sfoot{padding:10px 16px calc(14px + var(--safe-b));display:grid;gap:10px}
+.sfoot .main{min-height:68px;font-size:22px;border-radius:18px}
+.sfoot .sec{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.sfoot .sec button{min-height:48px;font-size:14px}
+.toast{position:fixed;left:50%;bottom:calc(110px + var(--safe-b));transform:translateX(-50%);background:#24364f;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;z-index:50;display:none;max-width:90vw;text-align:center}.toast.show{display:block}
+.hidden{display:none!important}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (max-height:700px){.exname{font-size:28px}.bigclock{font-size:70px}.ring{width:180px;height:180px}.ring .bigclock{font-size:52px}}
+</style>
+</head>
+<body>
+<main id="planView">
+  <header class="row">
+    <div><span class="tag">BODYWEIGHT • NO WATCH</span><h1>Calisthenics Lab</h1></div>
+    <button class="ghost" id="openSettings" aria-label="Settings">⚙︎ Settings</button>
+  </header>
+  <p class="muted small">8-week plan • 4 strength days • daily movement • no equipment • 45-minute cap</p>
+
+  <section class="panel">
+    <div class="row"><strong>Training week</strong><select id="week" aria-label="Training week"></select></div>
+    <p id="phase" class="muted small"></p>
+    <div class="bar"><div class="fill" id="progress"></div></div>
+    <p id="progressText" class="muted small"></p>
+  </section>
+
+  <div class="days" id="days" role="tablist"></div>
+
+  <section class="panel" id="dayPanel">
+    <div class="row">
+      <div><span class="tag" id="kind"></span><h2 id="name" style="margin-top:8px"></h2><p class="muted small" id="focus" style="margin:0"></p></div>
+      <span class="tag" id="estimate"></span>
+    </div>
+    <p class="small" id="estimateNote"></p>
+    <button class="primary" style="width:100%;min-height:58px;font-size:18px" id="startSession">▶ Start guided session</button>
+    <p class="muted small" id="sessionHint">Guided mode: one big Log Set button, automatic rest, spoken cues, elapsed time. Keep the screen on for reliable timers.</p>
+
+    <h3>Warm-up • <span id="warmLen">4 minutes</span></h3>
+    <p class="muted small">March in place, arm circles, easy squats, gentle hip circles. Breathe normally.</p>
+
+    <h3>Main work</h3>
+    <div id="moves"></div>
+    <h3 id="coreTitle">Core finisher</h3>
+    <div id="core"></div>
+    <div id="extraWrap" class="hidden"><h3>Also logged this day</h3><div id="extra"></div></div>
+
+    <p class="muted small" style="margin-top:14px">Cool down 2 minutes: easy walk, slow breathing, light stretch. Stop at the time cap even if a set remains.</p>
+    <button class="primary" style="width:100%" id="finish">Mark day complete</button>
+  </section>
+
+  <section class="panel">
+    <h2>Progression &amp; tracking</h2>
+    <p id="weekNotes" class="small muted"></p>
+    <div class="row wrap">
+      <label>Best strict push-ups <input type="number" min="0" max="999" inputmode="numeric" id="pushups" placeholder="20"></label>
+      <button id="savePR">Save result</button>
+    </div>
+    <p id="prText" class="muted small"></p>
+    <h3>Recent sessions</h3>
+    <div id="history" class="small muted"></div>
+    <details><summary>Movement guidance and substitutions</summary>
+      <p class="small">Push-ups: straight trunk, stop 2–3 reps before failure. Pike: hips high, lower the head between the hands. Cobra press-ups: hips stay on the floor; press up only as far as is comfortable. No equipment is scheduled. Reverse snow angels, Y-T-W/W raises and prone swimmers train the upper back and posterior chain at low load; they are not a substitute for loaded pulling. If a sturdy table edge or a band ever becomes available, table/band rows are in the exercise library as a swap. For diamond, decline and pike variations, elevate the hands or shorten the range when needed. Use a wall or railing for balance on single-leg work.</p>
+      <p class="small">Tap any exercise name to show its cue.</p>
+    </details>
+    <details><summary>Safety and recovery</summary>
+      <p class="small">Strength sessions should feel about 7/10 effort; Tue, Thu and Sun are easy. Keep breathing on every rep — exhale on the effort, never hold your breath or strain. Stop for chest pain, faintness, severe headache, or unusual breathlessness. If discomfort persists, consult a clinician.</p>
+    </details>
+    <div class="grid2" style="margin-top:12px">
+      <button id="export">Export backup</button>
+      <button id="import">Import backup</button>
+      <input type="file" id="file" accept="application/json,.json" hidden>
+    </div>
+    <p class="muted small" id="importNote"></p>
+  </section>
+
+  <footer>Data stays in this browser on this device — export a backup periodically. Version 2.0 (schema 2). Your original v1 data is kept untouched under its old storage key. This is a progressive exercise guide, not medical advice.</footer>
+</main>
+
+<!-- Settings sheet -->
+<div class="sheet" id="settings" role="dialog" aria-label="Settings">
+  <div class="inner">
+    <div class="row"><h2>Settings</h2><button class="ghost" id="closeSettings">Done</button></div>
+    <section class="panel">
+      <h3 style="margin-top:0">Rest</h3>
+      <div class="setting"><label for="restWithin">Between sets (strength days)</label><select id="restWithin"></select></div>
+      <div class="setting"><label for="restBetween">Between exercises</label><select id="restBetween"></select></div>
+      <div class="setting"><label for="restLight">Light days &amp; core finisher</label><select id="restLight"></select></div>
+      <p class="muted small">Walking and mobility blocks have no automatic rest. The time estimate on each day updates with these settings.</p>
+    </section>
+    <section class="panel">
+      <h3 style="margin-top:0">Audio &amp; cues</h3>
+      <div class="setting"><span>Beeps</span><button class="switch" role="switch" data-set="soundOn" aria-checked="true"></button></div>
+      <div class="setting"><span>Voice prompts</span><button class="switch" role="switch" data-set="voiceOn" aria-checked="true"></button></div>
+      <div class="setting"><span>3-2-1 countdown beeps</span><button class="switch" role="switch" data-set="countdownOn" aria-checked="true"></button></div>
+      <div class="setting"><span>Vibration (not available on iPhone Safari)</span><button class="switch" role="switch" data-set="hapticsOn" aria-checked="true"></button></div>
+      <div class="setting"><span>Keep screen awake during a session</span><button class="switch" role="switch" data-set="keepAwake" aria-checked="true"></button></div>
+      <div class="grid2"><button id="testBeep">Test beep</button><button id="testVoice">Test voice</button></div>
+      <p class="muted small" id="audioNote">iPhone: audio unlocks when you tap Start. Beeps follow the ring/silent switch; voice prompts may play even on silent. Timers are deadline-based and correct themselves when you return, but no sound can play while the screen is locked — keep the screen on.</p>
+    </section>
+    <section class="panel">
+      <h3 style="margin-top:0">Time cap</h3>
+      <div class="setting"><label for="capMinutes">Session cap</label><select id="capMinutes"><option value="30">30 min</option><option value="35">35 min</option><option value="40">40 min</option><option value="45">45 min</option><option value="60">60 min</option></select></div>
+      <div class="setting"><label for="warnMinutes">Warn at</label><select id="warnMinutes"><option value="20">20 min</option><option value="25">25 min</option><option value="30">30 min</option><option value="35">35 min</option><option value="40">40 min</option><option value="50">50 min</option></select></div>
+    </section>
+  </div>
+</div>
+
+<!-- Guided session overlay -->
+<div id="session" aria-live="polite">
+  <div class="sbar">
+    <button class="ghost" id="endSession">End</button>
+    <div style="text-align:center"><div class="clock" id="sClock">00:00</div><div class="small muted" id="sStep">Set 1 / 14</div></div>
+    <button class="ghost" id="pauseBtn">Pause</button>
+  </div>
+  <div class="banner" id="capBanner"></div>
+  <div class="sbody">
+    <!-- WORK -->
+    <div id="phWork" class="stack">
+      <div class="label" id="wSet">Set 1 of 2</div>
+      <div class="exname" id="wName">Exercise</div>
+      <div class="target" id="wTarget">12–15 reps</div>
+      <div class="hintline hidden" id="wHint"></div>
+      <div class="cue" id="wCue"></div>
+      <div class="stepper"><button id="repMinus" aria-label="Fewer">−</button><div class="val"><span id="repVal">12</span><span class="unit" id="repUnit">reps done</span></div><button id="repPlus" aria-label="More">+</button></div>
+      <div class="next" id="wNext">Up next: —</div>
+    </div>
+    <!-- REST -->
+    <div id="phRest" class="stack hidden">
+      <div class="label" id="rLabel">Rest</div>
+      <div class="ring"><svg viewBox="0 0 120 120" width="100%" height="100%"><circle cx="60" cy="60" r="52" fill="none" stroke="#2b3b56" stroke-width="8"/><circle id="ringArc" cx="60" cy="60" r="52" fill="none" stroke="#7fb0ff" stroke-width="8" stroke-linecap="round" stroke-dasharray="326.7" stroke-dashoffset="0"/></svg><div class="bigclock" id="rClock">00:45</div></div>
+      <div class="exname" id="rNext" style="font-size:26px">Next exercise</div>
+      <div class="target" id="rTarget"></div>
+      <div class="cue" id="rCue"></div>
+    </div>
+    <!-- PAUSED -->
+    <div id="phPaused" class="stack hidden">
+      <div class="label">Paused</div>
+      <div class="exname">Take your time</div>
+      <p class="muted" id="pausedInfo"></p>
+    </div>
+    <!-- COMPLETE -->
+    <div id="phDone" class="stack hidden">
+      <div class="label">Session complete</div>
+      <div class="exname">Nice work 💪</div>
+      <p class="target" id="doneSummary"></p>
+      <p class="cue">Cool down 2 minutes: easy walk, slow breathing, light stretch.</p>
+    </div>
+  </div>
+  <div class="sfoot">
+    <button class="primary main" id="logSet">✓ Log set</button>
+    <button class="primary main hidden" id="skipRest">Skip rest</button>
+    <button class="primary main hidden" id="resumeBtn">▶ Resume</button>
+    <button class="primary main hidden" id="doneBtn">Mark day complete &amp; finish</button>
+    <div class="sec" id="secWork"><button id="skipSet">Skip set</button><button id="undoSet">Undo last</button><button id="restNow">Rest now</button></div>
+    <div class="sec hidden" id="secRest"><button id="restMinus">−15 s</button><button id="restPlus">+15 s</button><button id="undoSetR">Undo last</button></div>
+    <div class="sec hidden" id="secDone"><button id="finishNoMark" style="grid-column:span 3">Finish without marking</button></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="core.js"></script>
+<script>
+(function () {
+'use strict';
+const $ = id => document.getElementById(id);
+const now = () => Date.now();
+let toastTimer = null;
+function toast(t) { const e = $('toast'); e.textContent = t; e.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => e.classList.remove('show'), 2600); }
+
+/* ---------------- state & persistence ---------------- */
+let state;
+(function boot() {
+  let raw = null, from = 'empty';
+  try { raw = JSON.parse(localStorage.getItem(CL.STORAGE_V2)); from = 'v2'; } catch {}
+  if (!raw) { try { raw = JSON.parse(localStorage.getItem(CL.STORAGE_V1)); from = 'v1'; } catch {} }
+  const r = CL.normalize(raw);
+  state = r.state;
+  if (from === 'v1' && raw) { save(); toast('Upgraded your v1 data. Original kept as a backup.'); }
+})();
+function save() { try { localStorage.setItem(CL.STORAGE_V2, JSON.stringify(state)); } catch (e) { toast('Could not save (storage full or blocked).'); } }
+function plan() { return CL.dayPlan(state.day, state.week); }
+function sessionKey() { return `${state.week}-${state.day}`; }
+
+/* ---------------- audio / speech / haptics / wake lock ---------------- */
+const Snd = {
+  ctx: null, unlocked: false,
+  unlock() {
+    try {
+      this.ctx ??= new (window.AudioContext || window.webkitAudioContext)();
+      if (this.ctx.state !== 'running') this.ctx.resume();
+      const b = this.ctx.createBuffer(1, 1, 22050), s = this.ctx.createBufferSource(); s.buffer = b; s.connect(this.ctx.destination); s.start(0);
+      this.unlocked = true;
+    } catch {}
+    try { if ('speechSynthesis' in window && !this.speechPrimed) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); this.speechPrimed = true; } } catch {}
+  },
+  resume() { try { if (this.ctx && this.ctx.state !== 'running') this.ctx.resume(); } catch {} },
+  beep(f = 880, d = 0.15, when = 0) {
+    if (!state.settings.soundOn || !this.ctx) return;
+    try {
+      if (this.ctx.state !== 'running') this.ctx.resume();
+      const t = this.ctx.currentTime + when, o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      o.connect(g); g.connect(this.ctx.destination); o.start(t); o.stop(t + d + 0.02);
+    } catch {}
+  },
+  cue(name) {
+    if (name === 'logged') this.beep(660, 0.1);
+    else if (name === 'tick') this.beep(760, 0.1);
+    else if (name === 'go') { this.beep(880, 0.15); this.beep(1175, 0.25, 0.18); }
+    else if (name === 'done') { this.beep(784, 0.15); this.beep(988, 0.15, 0.18); this.beep(1175, 0.3, 0.36); }
+    else if (name === 'warn') { this.beep(523, 0.2); this.beep(523, 0.2, 0.3); }
+  },
+  speak(text, { urgent = false } = {}) {
+    if (!state.settings.voiceOn || !('speechSynthesis' in window)) return;
+    try {
+      if (urgent && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text); u.rate = 1; u.lang = 'en-US';
+      this.lastUtterance = u; // keep a reference: some engines drop GC'd utterances
+      speechSynthesis.speak(u);
+    } catch {}
+  },
+  silence() { try { speechSynthesis.cancel(); } catch {} },
+  vibrate(p) { if (state.settings.hapticsOn && navigator.vibrate) { try { navigator.vibrate(p); } catch {} } }
+};
+const Wake = {
+  lock: null,
+  async request() { if (!state.settings.keepAwake || !('wakeLock' in navigator)) return; try { this.lock = await navigator.wakeLock.request('screen'); this.lock.addEventListener('release', () => { this.lock = null; }); } catch {} },
+  release() { try { this.lock && this.lock.release(); } catch {} this.lock = null; }
+};
+
+/* ---------------- plan view rendering ---------------- */
+function el(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (attrs || {})) { const v = attrs[k]; if (v == null || v === false) continue; if (k === 'class') e.className = v; else if (k.startsWith('on')) e[k] = v; else if (k === 'text') e.textContent = v; else if (k === 'disabled') e.disabled = true; else e.setAttribute(k, v === true ? 'true' : v); }
+  for (const kid of kids) if (kid != null) e.append(kid);
+  return e;
+}
+const openCues = new Set();
+
+function renderPlan() {
+  const p = plan(), S = state.session, settings = state.settings;
+  $('week').replaceChildren(...Array.from({ length: 8 }, (_, i) => el('option', { value: i + 1, text: `Week ${i + 1}` })));
+  $('week').value = String(state.week);
+  $('phase').textContent = CL.PHASES[state.week - 1].text;
+  $('weekNotes').textContent = CL.PHASES[state.week - 1].text + ' The estimate on each day already includes warm-up, rests and cool-down.';
+  $('days').replaceChildren(...CL.PROGRAM.map((d, i) => el('button', { class: i === state.day ? 'active' : '', role: 'tab', 'aria-selected': i === state.day, onclick: () => changeDay(i) }, el('span', { text: d.d }), el('span', { class: 'dot', text: state.done[`${state.week}-${i}`] ? '✓' : (d.k === 'Strength' ? '●' : '○') }))));
+  $('name').textContent = p.n; $('kind').textContent = p.k; $('focus').textContent = p.f;
+  $('warmLen').textContent = p.light ? '2 minutes' : '4 minutes';
+  const est = CL.estimateMinutes(p, settings);
+  $('estimate').textContent = `≈ ${est.minutes} min`; $('estimate').className = 'tag ' + (est.fits ? 'good' : 'warn');
+  $('estimateNote').textContent = est.fits ? `Estimated ${est.minutes} min including warm-up, ${est.restMin} min of rest and cool-down, at your current rest settings.` : `Estimated ${est.minutes} min — over your ${settings.capMinutes}-minute cap. Shorten rests in Settings or skip a set; the coach will warn you at ${settings.warnMinutes} min.`;
+  const active = S && S.key === sessionKey();
+  $('startSession').textContent = active ? '▶ Resume guided session' : (S ? '▶ Start guided session (ends the other session)' : '▶ Start guided session');
+  const draw = items => items.map(it => {
+    const logged = state.sets[it.logKey] || [];
+    const row = el('div', { class: 'ex' + (openCues.has(it.id) ? ' open' : '') });
+    const head = el('div', { onclick: () => { openCues.has(it.id) ? openCues.delete(it.id) : openCues.add(it.id); row.classList.toggle('open'); } },
+      el('div', { class: 'name', text: it.name }), el('div', { class: 'rx', text: `${it.label} • ${logged.length}/${it.sets} sets logged` }),
+      it.hint ? el('div', { class: 'hint', text: 'This week: ' + it.hint }) : null, el('div', { class: 'cue', text: it.cue }));
+    const dots = el('div', { class: 'dots' }, ...Array.from({ length: Math.max(it.sets, logged.length) }, (_, i) => el('span', { class: i < logged.length ? 'on' : '' })));
+    const input = el('input', { type: 'number', min: 0, max: 999, inputmode: 'numeric', 'aria-label': `${it.name} ${it.unit}`, value: logged.length ? logged[logged.length - 1].reps : it.target });
+    const log = el('button', { class: 'primary', text: '+ Log set', onclick: () => { const n = Number(input.value); if (!Number.isFinite(n) || n < 0 || n > 999) return toast('Enter a number 0–999'); addSet(it, n); renderPlan(); } });
+    const undo = el('button', { class: 'ghost', text: 'Undo', disabled: !logged.length, onclick: () => { removeLastSet(it.logKey); renderPlan(); } });
+    row.append(head, dots, el('div', { class: 'logline' }, el('label', { class: 'small muted', text: it.unit === 'min' ? 'min' : it.unit === 'sec' ? 'sec' : 'reps' }), input, el('span', { class: 'spacer' }), log, undo));
+    if (logged.length) row.append(el('div', { class: 'logged', text: 'Logged: ' + logged.map(x => x.reps + (x.unit && x.unit !== 'reps' ? ' ' + x.unit : '')).join(', ') }));
+    return row;
+  });
+  $('moves').replaceChildren(...draw(p.items.filter(i => i.section === 'm')));
+  const core = p.items.filter(i => i.section === 'c');
+  $('core').replaceChildren(...draw(core)); $('coreTitle').classList.toggle('hidden', !core.length);
+  // Preserved logs for exercises no longer on this day (programme changed) — never hidden.
+  const known = new Set(p.items.map(i => i.logKey)), prefix = `${state.week}-${state.day}-`;
+  const extra = Object.keys(state.sets).filter(k => k.startsWith(prefix) && !known.has(k));
+  $('extraWrap').classList.toggle('hidden', !extra.length);
+  $('extra').replaceChildren(...extra.map(k => { const id = k.slice(prefix.length), name = CL.EX[id] ? CL.EX[id].name : id; return el('div', { class: 'ex' }, el('div', { class: 'name', text: name }), el('div', { class: 'logged', text: 'Logged: ' + state.sets[k].map(x => x.reps).join(', ') })); }));
+  $('finish').textContent = state.done[sessionKey()] ? '✓ Completed • tap to undo' : 'Mark day complete';
+  const count = CL.PROGRAM.filter((_, i) => state.done[`${state.week}-${i}`]).length;
+  $('progress').style.width = `${count / 7 * 100}%`; $('progressText').textContent = `${count} of 7 days completed this week`;
+  $('prText').textContent = state.prs[state.week] != null ? `Week ${state.week} best: ${state.prs[state.week]} strict push-ups` : 'No push-up result recorded this week';
+  $('pushups').value = state.prs[state.week] ?? '';
+  const hist = state.history.slice(-6).reverse();
+  $('history').replaceChildren(...(hist.length ? hist.map(h => { const [w, d] = h.key.split('-'); const dt = new Date(h.startedAt); return el('div', { text: `${dt.toLocaleDateString()} • Week ${w} ${CL.PROGRAM[+d].d} • ${h.setsLogged} sets • ${CL.fmt((h.endedAt - h.startedAt) / 1000)}${h.completed ? ' • ✓' : ''}` }); }) : [el('div', { text: 'No guided sessions yet.' })]));
+}
+
+function changeDay(i) { if (i === state.day) return; if (!confirmLeaveSession()) return; state.day = i; save(); renderPlan(); }
+function confirmLeaveSession() {
+  if (!state.session) return true;
+  if (!confirm('You have a guided session in progress. End it and switch? Your logged sets are kept.')) return false;
+  endSession(false); return true;
+}
+$('week').onchange = e => { if (!confirmLeaveSession()) { $('week').value = String(state.week); return; } state.week = +e.target.value; save(); renderPlan(); };
+$('finish').onclick = () => { state.done[sessionKey()] = !state.done[sessionKey()]; if (!state.done[sessionKey()]) delete state.done[sessionKey()]; save(); renderPlan(); };
+$('savePR').onclick = () => { const v = $('pushups').value; if (v === '') return; const n = Number(v); if (!Number.isFinite(n) || n < 0 || n > 999) return toast('Enter a number 0–999'); state.prs[state.week] = Math.round(n); save(); renderPlan(); toast('Saved'); };
+
+function addSet(item, n) { state.sets[item.logKey] ||= []; if (state.sets[item.logKey].length >= 50) return toast('Set limit reached for this exercise'); state.sets[item.logKey].push({ reps: Math.round(n), at: new Date().toISOString(), unit: item.unit }); save(); }
+function removeLastSet(key) { if (state.sets[key]?.length) { state.sets[key].pop(); if (!state.sets[key].length) delete state.sets[key]; save(); } }
+
+/* ---------------- export / import ---------------- */
+$('export').onclick = () => {
+  const out = Object.assign({}, state, { exportedAt: new Date().toISOString(), app: 'Calisthenics Lab' });
+  const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }), a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `calisthenics-lab-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+};
+$('import').onclick = () => $('file').click();
+$('file').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  if (f.size > CL.MAX_IMPORT_BYTES) return toast('Backup too large (limit 2 MB)');
+  const r = CL.parseImport(await f.text());
+  if (!r.ok) return toast('Import failed: ' + r.error);
+  const mode = confirm(`Backup contains ${r.setCount} logged sets and ${r.dayCount} completed days (${r.from === 'v1' ? 'v1 format — will be upgraded' : 'v2 format'}).\n\nOK = MERGE into your current data (recommended).\nCancel = choose Replace next.`) ? 'merge' : (confirm('REPLACE all current data with the backup? A snapshot of your current data is saved first.') ? 'replace' : null);
+  if (!mode) return toast('Import cancelled');
+  try { localStorage.setItem(CL.STORAGE_PREIMPORT, JSON.stringify(state)); } catch {}
+  const imported = r.state;
+  if (mode === 'merge') { const m = CL.merge(state, imported); m.settings = state.settings; m.session = state.session; state = m; }
+  else { imported.session = null; state = imported; }
+  save(); renderPlan();
+  $('importNote').textContent = `Imported (${mode}). ${r.notes.join(' ')} Previous data snapshot kept under "${CL.STORAGE_PREIMPORT}".`;
+  toast('Import complete');
+};
+
+/* ---------------- settings ---------------- */
+function fillRest(id, vals) { $(id).replaceChildren(...vals.map(v => el('option', { value: v, text: v === 0 ? 'none' : v + ' sec' }))); }
+fillRest('restWithin', [20, 30, 45, 60, 75, 90, 120]); fillRest('restBetween', [30, 45, 60, 75, 90, 120, 150]); fillRest('restLight', [0, 15, 20, 30, 45, 60]);
+function renderSettings() {
+  const s = state.settings;
+  ['restWithin', 'restBetween', 'restLight', 'capMinutes', 'warnMinutes'].forEach(k => { $(k).value = String(s[k]); });
+  document.querySelectorAll('.switch').forEach(b => b.setAttribute('aria-checked', String(!!s[b.dataset.set])));
+}
+['restWithin', 'restBetween', 'restLight', 'capMinutes', 'warnMinutes'].forEach(k => { $(k).onchange = e => { state.settings[k] = Number(e.target.value); if (state.settings.warnMinutes >= state.settings.capMinutes) state.settings.warnMinutes = state.settings.capMinutes - 5; save(); renderSettings(); renderPlan(); }; });
+document.querySelectorAll('.switch').forEach(b => b.onclick = () => { const k = b.dataset.set; state.settings[k] = !state.settings[k]; if (k === 'voiceOn' && !state.settings.voiceOn) Snd.silence(); if ((k === 'soundOn' || k === 'voiceOn') && state.settings[k]) Snd.unlock(); save(); renderSettings(); });
+$('openSettings').onclick = () => { renderSettings(); $('settings').classList.add('show'); };
+$('closeSettings').onclick = () => $('settings').classList.remove('show');
+$('testBeep').onclick = () => { Snd.unlock(); Snd.cue('go'); };
+$('testVoice').onclick = () => { Snd.unlock(); Snd.speak('Voice prompts are working.', { urgent: true }); };
+
+/* ---------------- guided session engine ---------------- */
+let tickTimer = null, cdFired = {}, busyUntil = 0, repDraft = null, lastPhase = null, announcedNext = false;
+const S = () => state.session;
+
+$('startSession').onclick = () => {
+  Snd.unlock();
+  if (S() && S().key !== sessionKey()) { if (!confirm('End your other in-progress session and start this one?')) return; endSession(false); }
+  if (!S()) {
+    state.session = { key: sessionKey(), startedAt: now(), pausedAt: 0, pausedTotal: 0, restUntil: 0, restTotal: 0, restKind: 'within', skipped: {}, warned: false, capped: false };
+    save();
+    const pos = CL.sessionPosition(plan(), state.sets, {});
+    Snd.speak(pos.current ? `Starting ${plan().n}. First: ${sayItem(pos.current)}.` : 'Nothing left to do today.', { urgent: true });
+  }
+  openSession();
+};
+function openSession() { repDraft = null; lastPhase = null; announcedNext = false; cdFired = {}; $('session').classList.add('show'); Wake.request(); startTicking(); tick(); }
+function startTicking() { clearInterval(tickTimer); tickTimer = setInterval(tick, 250); }
+function closeSession() { clearInterval(tickTimer); tickTimer = null; $('session').classList.remove('show'); Wake.release(); renderPlan(); }
+
+function phase() {
+  const s = S(); if (!s) return 'none';
+  if (s.pausedAt) return 'paused';
+  const pos = CL.sessionPosition(plan(), state.sets, s.skipped);
+  if (pos.done) return 'done';
+  if (s.restUntil) return now() < s.restUntil ? 'rest' : 'restover';
+  return 'work';
+}
+
+function tick() {
+  const s = S(); if (!s) return;
+  const p = plan(), t = now();
+  // elapsed clock + cap warnings
+  const elapsed = CL.elapsedMs(s, t) / 1000, mins = elapsed / 60;
+  $('sClock').textContent = CL.fmt(elapsed);
+  $('sClock').className = 'clock' + (mins >= state.settings.capMinutes ? ' bad' : mins >= state.settings.warnMinutes ? ' warn' : '');
+  if (!s.warned && mins >= state.settings.warnMinutes && !s.pausedAt) { s.warned = true; save(); const left = state.settings.capMinutes - state.settings.warnMinutes; banner(`${left} minutes to your ${state.settings.capMinutes}-minute cap. Finish the current exercise, then cool down.`, false); Snd.cue('warn'); Snd.speak(`${left} minutes left before your time cap.`); }
+  if (!s.capped && mins >= state.settings.capMinutes && !s.pausedAt) { s.capped = true; save(); banner(`Time cap reached. Stop after this set and cool down — unfinished sets are fine.`, true); Snd.cue('warn'); Snd.speak('Time cap reached. Finish this set, then cool down.', { urgent: true }); }
+
+  let ph = phase();
+  if (ph === 'restover') { finishRest(); ph = 'work'; }
+  const pos = CL.sessionPosition(p, state.sets, s.skipped);
+  const n = pos.index + 1;
+  $('sStep').textContent = pos.done ? `${pos.total} / ${pos.total} sets` : `Set ${n} / ${pos.total}`;
+  $('session').className = 'show ' + (ph === 'rest' ? 'rest' : ph === 'paused' ? 'paused' : ph === 'done' ? 'complete' : '');
+  show('phWork', ph === 'work'); show('phRest', ph === 'rest'); show('phPaused', ph === 'paused'); show('phDone', ph === 'done');
+  show('logSet', ph === 'work'); show('skipRest', ph === 'rest'); show('resumeBtn', ph === 'paused'); show('doneBtn', ph === 'done');
+  show('secWork', ph === 'work'); show('secRest', ph === 'rest'); show('secDone', ph === 'done');
+  $('pauseBtn').classList.toggle('hidden', ph === 'done' || ph === 'paused');
+  $('undoSet').disabled = $('undoSetR').disabled = !lastSessionSet();
+
+  if (ph === 'work' && pos.current) {
+    const it = pos.current.item;
+    if (lastPhase !== 'work' || $('wName').dataset.key !== it.logKey + pos.current.setNo) { repDraft = defaultReps(it); $('wName').dataset.key = it.logKey + pos.current.setNo; }
+    $('wSet').textContent = `Set ${pos.current.setNo} of ${it.sets}`;
+    $('wName').textContent = it.name; $('wTarget').textContent = targetText(it); $('wCue').textContent = it.cue;
+    $('wHint').textContent = it.hint ? 'This week: ' + it.hint : ''; $('wHint').classList.toggle('hidden', !it.hint);
+    $('repVal').textContent = repDraft; $('repUnit').textContent = it.unit === 'reps' ? (it.perSide ? 'reps per side' : 'reps done') : it.unit === 'sec' ? (it.perSide ? 'sec per side' : 'seconds held') : 'minutes';
+    $('wNext').textContent = pos.next ? (pos.next.item.logKey === it.logKey ? `Then: ${it.name}, set ${pos.next.setNo}` : `Up next: ${pos.next.item.name} (${pos.next.item.label})`) : 'Last set of the session';
+  } else if (ph === 'rest') {
+    const left = CL.secondsLeft(s.restUntil, t), nxt = pos.current;
+    $('rClock').textContent = CL.fmt(left);
+    $('ringArc').setAttribute('stroke-dashoffset', String(326.7 * (1 - Math.min(1, left / Math.max(1, s.restTotal)))));
+    $('rLabel').textContent = s.restKind === 'between' ? 'Rest • next exercise' : 'Rest • up next';
+    if (nxt) { $('rNext').textContent = `${nxt.item.name} • set ${nxt.setNo} of ${nxt.item.sets}`; $('rTarget').textContent = targetText(nxt.item); $('rCue').textContent = nxt.item.cue; }
+    if (!announcedNext && nxt && left <= 10) { announcedNext = true; Snd.speak(`Next: ${sayItem(nxt)}.`); }
+    if (state.settings.countdownOn && left <= 3 && left >= 1 && !cdFired[left]) { cdFired[left] = true; Snd.cue('tick'); }
+  } else if (ph === 'paused') {
+    $('pausedInfo').textContent = s.restUntil ? 'Rest timer is paused too.' : (pos.current ? `Next up: ${sayItem(pos.current)}.` : '');
+  } else if (ph === 'done') {
+    $('doneSummary').textContent = `${sessionSetCount()} sets logged in ${CL.fmt(elapsed)}.`;
+  }
+  if (ph === 'done' && lastPhase !== 'done' && lastPhase !== null) { Snd.cue('done'); Snd.speak('All sets complete. Great work. Cool down.', { urgent: true }); }
+  lastPhase = ph;
+}
+function show(id, on) { $(id).classList.toggle('hidden', !on); }
+function defaultReps(it) { const prev = (state.sets[it.logKey] || []); return prev.length ? prev[prev.length - 1].reps : it.target; }
+function targetText(it) { const range = it.lo === it.hi ? String(it.target) : `${Math.min(it.lo, it.hi)}–${Math.max(it.lo, it.hi)}`; const u = it.unit === 'reps' ? ' reps' : it.unit === 'sec' ? ' sec' : ' min'; return `Target: ${range}${u}${it.perSide ? ' per side' : ''}`; }
+function sayItem(q) { return q.item.sets > 1 ? `${q.item.name}, set ${q.setNo}` : q.item.name; }
+function sessionSetCount() { const s = S(); let n = 0; for (const k in state.sets) if (k.startsWith(s.key + '-')) for (const e of state.sets[k]) if (e.at && Date.parse(e.at) >= s.startedAt) n++; return n; }
+function lastSessionSet() { const s = S(); if (!s) return null; let best = null; for (const k in state.sets) { const arr = state.sets[k]; const e = arr[arr.length - 1]; if (e && e.at && Date.parse(e.at) >= s.startedAt && k.startsWith(s.key + '-') && (!best || e.at > best.at)) best = { key: k, at: e.at }; } return best; }
+
+function guard() { const t = now(); if (t < busyUntil) return false; busyUntil = t + 500; return true; }
+
+$('repMinus').onclick = () => { repDraft = Math.max(0, (repDraft || 0) - 1); $('repVal').textContent = repDraft; };
+$('repPlus').onclick = () => { repDraft = Math.min(999, (repDraft || 0) + 1); $('repVal').textContent = repDraft; };
+
+$('logSet').onclick = () => {
+  if (!guard()) return; const s = S(); if (!s || s.pausedAt) return;
+  Snd.unlock();
+  const p = plan(), pos = CL.sessionPosition(p, state.sets, s.skipped); if (!pos.current) return;
+  const it = pos.current.item;
+  addSet(it, repDraft ?? it.target);
+  Snd.cue('logged'); Snd.vibrate(40);
+  const after = CL.sessionPosition(p, state.sets, s.skipped);
+  if (after.done) { s.restUntil = 0; save(); tick(); return; }
+  const between = after.current.item.logKey !== it.logKey;
+  const dur = CL.restFor(it, between, p.light, state.settings);
+  beginRest(dur, between ? 'between' : 'within', after.current);
+};
+function beginRest(dur, kind, nextQ) {
+  const s = S(); cdFired = {}; announcedNext = false;
+  if (dur <= 0) { s.restUntil = 0; save(); Snd.speak(`Next: ${sayItem(nextQ)}.`, { urgent: true }); tick(); return; }
+  s.restUntil = now() + dur * 1000; s.restTotal = dur; s.restKind = kind; save();
+  Snd.speak(kind === 'between' ? `Logged. Rest ${dur} seconds, then ${nextQ.item.name}.` : `Logged. Rest ${dur} seconds.`, { urgent: true });
+  if (dur <= 10) announcedNext = true;
+  tick();
+}
+function finishRest() {
+  const s = S(); s.restUntil = 0; save();
+  const pos = CL.sessionPosition(plan(), state.sets, s.skipped);
+  Snd.cue('go'); Snd.vibrate([150, 80, 150]);
+  if (pos.current) Snd.speak(`Go. ${pos.current.item.name}.`, { urgent: true });
+}
+$('skipRest').onclick = () => { if (!guard()) return; const s = S(); if (!s || !s.restUntil) return; finishRest(); tick(); };
+$('restPlus').onclick = () => { const s = S(); if (s && s.restUntil) { s.restUntil += 15000; s.restTotal += 15; save(); tick(); } };
+$('restMinus').onclick = () => { const s = S(); if (s && s.restUntil) { s.restUntil -= 15000; save(); tick(); } };
+$('restNow').onclick = () => { if (!guard()) return; const s = S(); if (!s) return; const pos = CL.sessionPosition(plan(), state.sets, s.skipped); if (!pos.current) return; const dur = CL.restFor(pos.current.item, false, plan().light, state.settings) || 30; Snd.unlock(); beginRest(dur, 'within', pos.current); };
+$('skipSet').onclick = () => {
+  if (!guard()) return; const s = S(); if (!s) return;
+  const p = plan(), pos = CL.sessionPosition(p, state.sets, s.skipped); if (!pos.current) return;
+  s.skipped[pos.current.item.logKey] = (s.skipped[pos.current.item.logKey] || 0) + 1; s.restUntil = 0; save();
+  const after = CL.sessionPosition(p, state.sets, s.skipped);
+  if (after.current) Snd.speak(`Skipped. Next: ${sayItem(after.current)}.`, { urgent: true });
+  tick();
+};
+function undo() {
+  if (!guard()) return; const s = S(); if (!s) return;
+  const last = lastSessionSet(); if (!last) return toast('Nothing to undo in this session');
+  removeLastSet(last.key); s.restUntil = 0; save(); Snd.speak('Undone.', { urgent: true }); toast('Last set removed'); tick();
+}
+$('undoSet').onclick = undo; $('undoSetR').onclick = undo;
+$('pauseBtn').onclick = () => { const s = S(); if (!s || s.pausedAt) return; s.pausedAt = now(); save(); Snd.silence(); tick(); };
+$('resumeBtn').onclick = () => { const s = S(); if (!s || !s.pausedAt) return; const d = now() - s.pausedAt; s.pausedTotal += d; if (s.restUntil) s.restUntil += d; s.pausedAt = 0; save(); Snd.unlock(); tick(); };
+$('endSession').onclick = () => { const s = S(); if (!s) return closeSession(); const pos = CL.sessionPosition(plan(), state.sets, s.skipped); if (!pos.done && !confirm('End this session? Logged sets are kept.')) return; endSession(false); closeSession(); };
+$('doneBtn').onclick = () => { endSession(true); closeSession(); };
+$('finishNoMark').onclick = () => { endSession(false); closeSession(); };
+function endSession(markDone) {
+  const s = S(); if (!s) return;
+  const t = now(); if (s.pausedAt) { s.pausedTotal += t - s.pausedAt; s.pausedAt = 0; }
+  state.history.push({ key: s.key, startedAt: s.startedAt, endedAt: s.startedAt + CL.elapsedMs(s, t), setsLogged: sessionSetCount(), completed: !!markDone || !!state.done[s.key] });
+  if (state.history.length > 200) state.history = state.history.slice(-200);
+  if (markDone) state.done[s.key] = true;
+  state.session = null; save(); Snd.silence(); $('capBanner').className = 'banner';
+}
+
+function banner(text, bad) { const b = $('capBanner'); b.textContent = text; b.className = 'banner show' + (bad ? ' bad' : ''); }
+
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { Snd.resume(); if (S()) { Wake.request(); tick(); } } });
+window.addEventListener('pageshow', () => { if (S()) tick(); });
+
+/* ---------------- start ---------------- */
+renderPlan(); renderSettings();
+if (S()) {
+  // App was closed mid-session: restore in a paused state so nothing fires unexpectedly.
+  const s = S(); if (!s.pausedAt) { s.pausedAt = now(); save(); }
+  if (s.key !== sessionKey()) { const [w, d] = s.key.split('-'); state.week = +w; state.day = +d; save(); renderPlan(); }
+  openSession(); toast('Session restored — tap Resume to continue or End to finish.');
+}
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) { navigator.serviceWorker.register('sw.js').catch(() => {}); }
+window.__cl = { get state() { return state; }, tick, plan, renderPlan }; // test hook (read-only use)
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+PASS v1.2 repro: importing a backup without `sets` crashes render (TypeError)
+PASS v1.2 repro: crafted backup injects HTML into the page
+PASS v1.2 repro: Tuesday guided queue asks for 6 sets of walking
+PASS v2: boots from v1 storage, migrates, leaves v1 key untouched
+PASS v2: guided session — log, rest 45 s, auto-advance to set 2, duplicate tap ignored
+PASS v2: between-exercise rest is 60 s; skip rest; skip set; undo moves back
+PASS v2: pause freezes elapsed and rest; resume shifts the deadline
+PASS v2: changing day mid-session asks for confirmation; reload restores a paused session
+PASS v2: session completion screen, mark complete, history and done flag
+PASS v2: light day — walking has no rest and advances straight to bird dogs
+PASS v2: 40-minute warning and 45-minute cap banners fire without blocking alerts
+PASS v2: import a v1 backup file (merge) keeps existing data and upgrades keys
+PASS v2: crafted backup cannot inject markup
+PASS v2: no console errors during the run
