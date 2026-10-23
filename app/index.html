@@ -40,11 +40,11 @@ input[type=number]{width:84px;text-align:center;font-variant-numeric:tabular-num
 .stack{display:grid;gap:8px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 details{padding:10px 0;border-bottom:1px solid var(--line)}summary{cursor:pointer;font-weight:650;min-height:32px;display:flex;align-items:center}
 footer{font-size:12px;color:#8ea0ba;line-height:1.5;margin-top:24px}
-.setting{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}.setting:last-child{border:0}
+.setting{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}.setting:last-child{border:0}.setting>label,.setting>span{flex:1;min-width:0}.setting select{max-width:55%;flex:none;text-overflow:ellipsis}.setting input[type=range]{width:45%;flex:none}
 .switch{width:52px;height:32px;border-radius:16px;background:#3a4e70;position:relative;flex:none;min-height:32px;padding:0}
 .switch::after{content:"";position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;transition:left .15s}
 .switch[aria-checked=true]{background:var(--good)}.switch[aria-checked=true]::after{left:23px}
-.sheet{position:fixed;inset:0;background:#0f1726f2;z-index:40;overflow:auto;padding:calc(14px + var(--safe-t)) 16px calc(24px + var(--safe-b));display:none}.sheet.show{display:block}
+.sheet{position:fixed;inset:0;background:var(--bg);z-index:40;overflow:auto;padding:calc(14px + var(--safe-t)) 16px calc(24px + var(--safe-b));display:none}.sheet.show{display:block}
 .sheet .inner{max-width:720px;margin:auto}
 /* ---- guided session overlay ---- */
 #session{position:fixed;inset:0;background:var(--bg);z-index:30;display:none;flex-direction:column;padding-top:var(--safe-t)}
@@ -169,9 +169,10 @@ input[type=range]{width:160px}
     </section>
     <section class="panel">
       <h3 style="margin-top:0">Voice</h3>
-      <div class="setting"><label for="voiceURI">Voice</label><select id="voiceURI" style="max-width:55%"></select></div>
+      <div class="setting"><label for="voiceURI">Voice</label><select id="voiceURI"></select></div>
       <div class="setting"><label for="voiceRate">Speed <span id="voiceRateVal" class="muted small"></span></label><input type="range" id="voiceRate" min="0.8" max="1.2" step="0.05"></div>
-      <div class="setting"><label for="cueLevel">Coaching during sets</label><select id="cueLevel"><option value="off">Off — names only</option><option value="light">Light — form cue on set 1</option><option value="full">Full — cues plus mid-set reminders</option></select></div>
+      <div class="setting"><label for="cueLevel">Coaching during sets</label><select id="cueLevel"><option value="off">Off</option><option value="light">Light</option><option value="full">Full</option></select></div>
+      <p class="muted small">Off: exercise names only. Light: a form cue at the start of each exercise. Full: a cue on every set plus a short reminder about 25 seconds in.</p>
       <div class="setting"><span>Motivational lines during rests</span><button class="switch" role="switch" data-set="quotesOn" aria-checked="true"></button></div>
       <p class="muted small">The list shows the voices installed on this device. On iPhone, the best ones are downloaded in Settings → Accessibility → Spoken Content → Voices → English — look for names marked "Enhanced" or "Premium" (for example Ava, Zoe, Evan, Nathan). They appear here after a restart of the app.</p>
     </section>
