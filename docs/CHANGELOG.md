@@ -1,4 +1,22 @@
-# Change log — v1.2 → v2.0
+# Change log
+
+## v2.1 (2026-10-22) — after the first real session on the phone
+
+User feedback: works on iPhone; didn't know several exercises; wanted more sets (finished a 14-set day in 16 min); wanted the voice to say more mid-workout, better voices, warm-up and cool-down timers, and a timed burnout set to finish each exercise. Also supplied a list of motivational lines to be spoken without attribution.
+
+- **How-to for every exercise** (setup → movement → the common mistake). Shown by tapping the name in the plan, by "How? 🔊" in the session, and read aloud by the 🔊 Explain button.
+- **Sets:** default 3 per strength exercise (Settings → 2/3/4). Week 7 adds one more on the first two exercises; week 8 halves. Core finisher stays at 2.
+- **Burnout set:** the last set of each push/leg/hinge/upper-back exercise is a timed AMRAP (default 40 s; 30–60). Separate "Start burnout timer" button; spoken "halfway" and "ten seconds"; 3-2-1 beeps; then "Stop. Log your reps". Logged with `burnout: true, secs`. Shown as 🔥 in the log. "Log reps without the timer" bypass. Guidance text says to stop at technique breakdown, not absolute failure.
+- **Warm-up timer** (default 4 min, light days 2) with five spoken steps evenly spaced; **cool-down timer** (default 2 min, light days 1) with three steps. ±30 s and Skip. Both count toward the elapsed clock and the estimate.
+- **Mid-workout voice:** coaching level Off / Light / Full. Full = form cue at the start of every set plus a short reminder ~25 s into ordinary sets. Light = cue on set 1 only.
+- **Motivational lines:** 100 lines from the user's list, attribution stripped, rotated in order (position persisted as `quoteIdx`); one per rest ≥ 30 s, a few seconds in; one at the start of the warm-up and after the cool-down. Switch in Settings.
+- **Voice picker:** lists the device's English voices (★ marks Enhanced/Premium), automatic choice prefers Premium → Enhanced → local en-US; speed slider 0.8–1.2×; test lines. iOS note on downloading better voices in Accessibility → Spoken Content.
+- **Estimator recalibrated** to ~2 s/rep + 6 s per set (was 3 s + 10 s) from the 16-minute observation; burnout time counted as fixed. Monday now estimates ≈ 32 min with warm-up and cool-down.
+- Pause now freezes warm-up, burnout and cool-down deadlines too. Undo during cool-down returns to the last set.
+- Service worker cache bumped to v2.1.0 so installed phones pick up the update on next launch.
+- Tests: unit tests cover extraSets, burnout flags, how-to presence, warm-up in the estimate, burnout log entries; browser suite adds the full warm-up → burnout → cool-down flow and the settings sheet (16 checks).
+
+## v1.2 → v2.0
 
 ## Files
 

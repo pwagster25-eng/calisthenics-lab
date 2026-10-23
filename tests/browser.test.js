@@ -14,6 +14,10 @@ async function step(name, fn) {
   catch (e) { results.push(['FAIL', name + ' — ' + (e && e.message || e)]); console.log('FAIL', name, '\n   ', e && e.stack || e); }
 }
 
+// Settings that reproduce the v2.0 flow (no warm-up/cool-down/burnout, 2 sets) for the state-machine tests.
+const LEGACY = { extraSets: 0, burnoutOn: false, warmupSeconds: 0, cooldownSeconds: 0, quotesOn: false };
+const seedSettings = (page, extra) => page.evaluate((s) => { const cur = JSON.parse(localStorage.getItem('calisthenics-v2') || '{"schemaVersion":2}'); cur.settings = Object.assign({}, cur.settings || {}, s); localStorage.setItem('calisthenics-v2', JSON.stringify(cur)); }, Object.assign({}, LEGACY, extra || {}));
+
 const V1_SEED = {
   done: { '1-0': true }, checks: {}, prs: { 1: 22 },
   sets: { '1-0-m-0': [{ reps: 12, at: '2026-10-01T10:00:00.000Z' }, { reps: 11, at: '2026-10-01T10:02:00.000Z' }], '1-5-m-1': [{ reps: 9, at: '2026-10-05T10:00:00.000Z' }] },
@@ -68,7 +72,7 @@ const V1_SEED = {
     assert.equal(v2.prs['1'], 22);
     await page.waitForSelector('#moves .ex');
     const first = await page.locator('#moves .ex').first().textContent();
-    assert.match(first, /Standard push-ups/); assert.match(first, /2\/2 sets logged/); assert.match(first, /Logged: 12, 11/);
+    assert.match(first, /Standard push-ups/); assert.match(first, /2\/3 sets logged/); assert.match(first, /Logged: 12, 11/);
     await page.click('[role=tab]:nth-child(6)'); // Sat
     assert.match(await page.textContent('#extraWrap'), /Decline push-ups[\s\S]*Logged: 9/, 'orphaned log still visible');
     await page.screenshot({ path: path.join(SHOTS, '01-plan-view.png'), fullPage: false });
@@ -78,6 +82,7 @@ const V1_SEED = {
   const T0 = new Date('2026-10-22T18:00:00Z').getTime();
   await step('v2: guided session — log, rest 45 s, auto-advance to set 2, duplicate tap ignored', async () => {
     await page.evaluate(() => localStorage.clear());
+    await seedSettings(page);
     await page.clock.install({ time: T0 });
     await page.goto(BASE + '/app/index.html');
     await page.click('#startSession');
@@ -152,7 +157,7 @@ const V1_SEED = {
     assert.equal(dialogs.length, n + 1);
   });
   await step('v2: session completion screen, mark complete, history and done flag', async () => {
-    await page.evaluate(() => localStorage.clear());
+    await page.evaluate(() => localStorage.clear()); await seedSettings(page);
     await page.goto(BASE + '/app/index.html'); await page.clock.runFor(300);
     await page.click('#startSession'); await page.clock.runFor(300);
     for (let i = 0; i < 14; i++) { await page.click('#logSet'); await page.clock.runFor(700); if (await page.isVisible('#skipRest')) { await page.click('#skipRest'); await page.clock.runFor(700); } }
@@ -189,6 +194,62 @@ const V1_SEED = {
     assert.equal(dialogs.length, n, 'no alert() dialogs');
     await page.screenshot({ path: path.join(SHOTS, '05-cap-banner.png') });
     await page.click('#endSession'); await page.clock.runFor(300);
+  });
+  await step('v2.1: warm-up → sets → burnout timer → cool-down → done, with how-to and quotes', async () => {
+    await page.evaluate(() => localStorage.clear());
+    await page.goto(BASE + '/app/index.html'); await page.clock.runFor(600);
+    await page.click('#startSession'); await page.clock.runFor(600);
+    assert.ok(await page.isVisible('#phTimer'), 'warm-up timer shown');
+    assert.equal((await page.textContent('#tLabel')).trim(), 'Warm-up'); assert.equal((await page.textContent('#tClock')).trim(), '04:00');
+    assert.match(await page.textContent('#tName'), /March in place/);
+    assert.equal((await page.textContent('#sStep')).trim(), 'Warm-up');
+    await page.clock.runFor(50_000);
+    assert.match(await page.textContent('#tName'), /Arm circles/, 'script advances with time');
+    await page.click('#timerSkip'); await page.clock.runFor(600);
+    assert.ok(await page.isVisible('#phWork')); assert.equal((await page.textContent('#wSet')).trim(), 'Set 1 of 3');
+    assert.equal(await page.evaluate(() => window.__cl.state.session.warmDone), true);
+    // how-to box
+    assert.ok(!(await page.isVisible('#wHow')));
+    await page.click('#howBtn'); assert.match(await page.textContent('#wHow'), /Hands just wider than shoulders/);
+    await page.click('#howBtn'); assert.ok(!(await page.isVisible('#wHow')));
+    // two normal sets, then the burnout set
+    for (let i = 0; i < 2; i++) { await page.click('#logSet'); await page.clock.runFor(700); await page.click('#skipRest'); await page.clock.runFor(700); }
+    assert.equal((await page.textContent('#wSet')).trim(), 'Set 3 of 3 • burnout');
+    assert.ok(await page.isVisible('#burnStart'), 'burnout start button'); assert.ok(!(await page.isVisible('#logSet')));
+    await page.click('#burnStart'); await page.clock.runFor(600);
+    assert.ok(await page.isVisible('#phTimer')); assert.match(await page.textContent('#tLabel'), /Burnout/); assert.equal((await page.textContent('#tClock')).trim(), '00:40');
+    const before = (await page.textContent('#tClock')).trim();
+    await page.click('#pauseBtn'); await page.clock.runFor(20_000); await page.click('#resumeBtn'); await page.clock.runFor(100);
+    assert.equal((await page.textContent('#tClock')).trim(), before, 'burnout timer paused');
+    await page.clock.runFor(41_000);
+    assert.ok(await page.isVisible('#phWork')); assert.match(await page.textContent('#wSet'), /Burnout done/); assert.ok(await page.isVisible('#logSet'));
+    await page.click('#repPlus'); await page.click('#logSet'); await page.clock.runFor(700);
+    const pu = await page.evaluate(() => JSON.parse(localStorage.getItem('calisthenics-v2')).sets['1-0-standard-push-ups']);
+    assert.equal(pu.length, 3); assert.equal(pu[2].burnout, true); assert.equal(pu[2].secs, 40); assert.equal(pu[2].reps, 13);
+    assert.equal((await page.textContent('#rClock')).trim(), '01:00'); assert.match(await page.textContent('#rNext'), /Bodyweight squats • set 1 of 3/);
+    // a motivational line is queued a few seconds into a long rest (quoteIdx advances)
+    const q0 = await page.evaluate(() => window.__cl.state.quoteIdx | 0);
+    await page.clock.runFor(6_000);
+    assert.equal(await page.evaluate(() => window.__cl.state.quoteIdx | 0), q0 + 1, 'quote spoken once during rest');
+    await page.click('#skipRest'); await page.clock.runFor(600);
+    // skip everything else to reach the cool-down
+    for (let i = 0; i < 30 && !(await page.isVisible('#phTimer')); i++) { await page.click('#skipSet'); await page.clock.runFor(600); }
+    assert.equal((await page.textContent('#tLabel')).trim(), 'Cool-down'); assert.equal((await page.textContent('#tClock')).trim(), '02:00');
+    assert.equal((await page.textContent('#sStep')).trim(), 'Cool-down');
+    await page.clock.runFor(121_000);
+    assert.ok(await page.isVisible('#phDone'), 'done after cool-down'); assert.match(await page.textContent('#doneSummary'), /3 sets logged/);
+    await page.screenshot({ path: path.join(SHOTS, '07-burnout.png') }).catch(() => {});
+    await page.click('#doneBtn'); await page.clock.runFor(600);
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('calisthenics-v2')).done['1-0']), true);
+  });
+  await step('v2.1: settings sheet lists voice controls and the plan shows burnout labels', async () => {
+    await page.click('#openSettings');
+    assert.ok(await page.isVisible('#voiceURI')); assert.ok(await page.isVisible('#extraSets')); assert.equal(await page.inputValue('#extraSets'), '1'); assert.equal(await page.inputValue('#burnoutSeconds'), '40');
+    await page.selectOption('#extraSets', '2'); await page.click('#closeSettings');
+    assert.match(await page.locator('#moves .ex').first().textContent(), /4 × 12–15 • last set: 40 s burnout/);
+    await page.locator('#moves .ex .name').first().click();
+    assert.ok(await page.locator('#moves .ex').first().locator('.how').isVisible(), 'how-to expands');
+    await page.click('#openSettings'); await page.selectOption('#extraSets', '1'); await page.click('#closeSettings');
   });
   await step('v2: import a v1 backup file (merge) keeps existing data and upgrades keys', async () => {
     await page.evaluate(() => localStorage.clear());

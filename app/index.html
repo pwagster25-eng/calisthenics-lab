@@ -70,6 +70,11 @@ footer{font-size:12px;color:#8ea0ba;line-height:1.5;margin-top:24px}
 .sfoot .sec{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.sfoot .sec button{min-height:48px;font-size:14px}
 .toast{position:fixed;left:50%;bottom:calc(110px + var(--safe-b));transform:translateX(-50%);background:#24364f;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;z-index:50;display:none;max-width:90vw;text-align:center}.toast.show{display:block}
 .hidden{display:none!important}
+.howbox{background:#1c2a44;border:1px solid var(--line);border-radius:14px;padding:12px 14px;font-size:14px;color:#dbe6fb;text-align:left;line-height:1.45;max-width:460px;margin:auto}
+.ex .how{color:#dbe6fb;font-size:13px;margin-top:6px;line-height:1.45;display:none}.ex.open .how{display:block}
+.ex .exbtns{display:flex;gap:8px;margin-top:8px}.ex .exbtns button{min-height:36px;font-size:13px;padding:0 10px}
+.burn .bigclock{color:var(--warn)}#session.burn{background:#2a1f12}#session.warm{background:#132a2e}#session.cool{background:#17233a}
+input[type=range]{width:160px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 @media (max-height:700px){.exname{font-size:28px}.bigclock{font-size:70px}.ring{width:180px;height:180px}.ring .bigclock{font-size:52px}}
 </style>
@@ -80,7 +85,7 @@ footer{font-size:12px;color:#8ea0ba;line-height:1.5;margin-top:24px}
     <div><span class="tag">BODYWEIGHT • NO WATCH</span><h1>Calisthenics Lab</h1></div>
     <button class="ghost" id="openSettings" aria-label="Settings">⚙︎ Settings</button>
   </header>
-  <p class="muted small">8-week plan • 4 strength days • daily movement • no equipment • 45-minute cap</p>
+  <p class="muted small">8-week plan • 4 strength days • daily movement • no equipment • burnout sets</p>
 
   <section class="panel">
     <div class="row"><strong>Training week</strong><select id="week" aria-label="Training week"></select></div>
@@ -101,7 +106,7 @@ footer{font-size:12px;color:#8ea0ba;line-height:1.5;margin-top:24px}
     <p class="muted small" id="sessionHint">Guided mode: one big Log Set button, automatic rest, spoken cues, elapsed time. Keep the screen on for reliable timers.</p>
 
     <h3>Warm-up • <span id="warmLen">4 minutes</span></h3>
-    <p class="muted small">March in place, arm circles, easy squats, gentle hip circles. Breathe normally.</p>
+    <p class="muted small">Guided in the session: marching, arm circles, easy squats, hip circles, a few easy push-ups. Length is in Settings.</p>
 
     <h3>Main work</h3>
     <div id="moves"></div>
@@ -109,7 +114,7 @@ footer{font-size:12px;color:#8ea0ba;line-height:1.5;margin-top:24px}
     <div id="core"></div>
     <div id="extraWrap" class="hidden"><h3>Also logged this day</h3><div id="extra"></div></div>
 
-    <p class="muted small" style="margin-top:14px">Cool down 2 minutes: easy walk, slow breathing, light stretch. Stop at the time cap even if a set remains.</p>
+    <p class="muted small" style="margin-top:14px" id="coolNote">Cool-down is guided at the end of the session. Stop at the time cap even if a set remains.</p>
     <button class="primary" style="width:100%" id="finish">Mark day complete</button>
   </section>
 
@@ -125,7 +130,7 @@ footer{font-size:12px;color:#8ea0ba;line-height:1.5;margin-top:24px}
     <div id="history" class="small muted"></div>
     <details><summary>Movement guidance and substitutions</summary>
       <p class="small">Push-ups: straight trunk, stop 2–3 reps before failure. Pike: hips high, lower the head between the hands. Cobra press-ups: hips stay on the floor; press up only as far as is comfortable. No equipment is scheduled. Reverse snow angels, Y-T-W/W raises and prone swimmers train the upper back and posterior chain at low load; they are not a substitute for loaded pulling. If a sturdy table edge or a band ever becomes available, table/band rows are in the exercise library as a swap. For diamond, decline and pike variations, elevate the hands or shorten the range when needed. Use a wall or railing for balance on single-leg work.</p>
-      <p class="small">Tap any exercise name to show its cue.</p>
+      <p class="small">Tap any exercise name for a full how-to, or its 🔊 button to have it read aloud. In a session, tap "How?" under the exercise name.</p>
     </details>
     <details><summary>Safety and recovery</summary>
       <p class="small">Strength sessions should feel about 7/10 effort; Tue, Thu and Sun are easy. Keep breathing on every rep — exhale on the effort, never hold your breath or strain. Stop for chest pain, faintness, severe headache, or unusual breathlessness. If discomfort persists, consult a clinician.</p>
@@ -138,7 +143,7 @@ footer{font-size:12px;color:#8ea0ba;line-height:1.5;margin-top:24px}
     <p class="muted small" id="importNote"></p>
   </section>
 
-  <footer>Data stays in this browser on this device — export a backup periodically. Version 2.0 (schema 2). Your original v1 data is kept untouched under its old storage key. This is a progressive exercise guide, not medical advice.</footer>
+  <footer>Data stays in this browser on this device — export a backup periodically. Version 2.1 (schema 2). Your original v1 data is kept untouched under its old storage key. This is a progressive exercise guide, not medical advice.</footer>
 </main>
 
 <!-- Settings sheet -->
@@ -151,6 +156,24 @@ footer{font-size:12px;color:#8ea0ba;line-height:1.5;margin-top:24px}
       <div class="setting"><label for="restBetween">Between exercises</label><select id="restBetween"></select></div>
       <div class="setting"><label for="restLight">Light days &amp; core finisher</label><select id="restLight"></select></div>
       <p class="muted small">Walking and mobility blocks have no automatic rest. The time estimate on each day updates with these settings.</p>
+    </section>
+    <section class="panel">
+      <h3 style="margin-top:0">Volume &amp; burnout</h3>
+      <div class="setting"><label for="extraSets">Sets per strength exercise</label><select id="extraSets"><option value="0">2 sets</option><option value="1">3 sets</option><option value="2">4 sets</option></select></div>
+      <div class="setting"><span>Timed burnout on the last set</span><button class="switch" role="switch" data-set="burnoutOn" aria-checked="true"></button></div>
+      <div class="setting"><label for="burnoutSeconds">Burnout length</label><select id="burnoutSeconds"><option value="30">30 sec</option><option value="40">40 sec</option><option value="45">45 sec</option><option value="60">60 sec</option></select></div>
+      <p class="muted small">Burnout: as many clean reps as you can in the time, stopping when technique breaks down — not to absolute failure. Keep breathing throughout. Applies to push, leg, hinge and upper-back exercises, not holds or the core finisher.</p>
+      <div class="setting"><label for="warmupSeconds">Warm-up (strength days)</label><select id="warmupSeconds"><option value="0">off</option><option value="120">2 min</option><option value="180">3 min</option><option value="240">4 min</option><option value="300">5 min</option></select></div>
+      <div class="setting"><label for="cooldownSeconds">Cool-down (strength days)</label><select id="cooldownSeconds"><option value="0">off</option><option value="60">1 min</option><option value="120">2 min</option><option value="180">3 min</option></select></div>
+      <p class="muted small">Light and recovery days use half these lengths.</p>
+    </section>
+    <section class="panel">
+      <h3 style="margin-top:0">Voice</h3>
+      <div class="setting"><label for="voiceURI">Voice</label><select id="voiceURI" style="max-width:55%"></select></div>
+      <div class="setting"><label for="voiceRate">Speed <span id="voiceRateVal" class="muted small"></span></label><input type="range" id="voiceRate" min="0.8" max="1.2" step="0.05"></div>
+      <div class="setting"><label for="cueLevel">Coaching during sets</label><select id="cueLevel"><option value="off">Off — names only</option><option value="light">Light — form cue on set 1</option><option value="full">Full — cues plus mid-set reminders</option></select></div>
+      <div class="setting"><span>Motivational lines during rests</span><button class="switch" role="switch" data-set="quotesOn" aria-checked="true"></button></div>
+      <p class="muted small">The list shows the voices installed on this device. On iPhone, the best ones are downloaded in Settings → Accessibility → Spoken Content → Voices → English — look for names marked "Enhanced" or "Premium" (for example Ava, Zoe, Evan, Nathan). They appear here after a restart of the app.</p>
     </section>
     <section class="panel">
       <h3 style="margin-top:0">Audio &amp; cues</h3>
@@ -186,6 +209,8 @@ footer{font-size:12px;color:#8ea0ba;line-height:1.5;margin-top:24px}
       <div class="target" id="wTarget">12–15 reps</div>
       <div class="hintline hidden" id="wHint"></div>
       <div class="cue" id="wCue"></div>
+      <div><button class="ghost" id="howBtn" style="min-height:36px;font-size:13px">How? 🔊</button></div>
+      <div class="howbox hidden" id="wHow"></div>
       <div class="stepper"><button id="repMinus" aria-label="Fewer">−</button><div class="val"><span id="repVal">12</span><span class="unit" id="repUnit">reps done</span></div><button id="repPlus" aria-label="More">+</button></div>
       <div class="next" id="wNext">Up next: —</div>
     </div>
@@ -196,6 +221,14 @@ footer{font-size:12px;color:#8ea0ba;line-height:1.5;margin-top:24px}
       <div class="exname" id="rNext" style="font-size:26px">Next exercise</div>
       <div class="target" id="rTarget"></div>
       <div class="cue" id="rCue"></div>
+    </div>
+    <!-- TIMER: warm-up / burnout / cool-down -->
+    <div id="phTimer" class="stack hidden">
+      <div class="label" id="tLabel">Warm-up</div>
+      <div class="ring"><svg viewBox="0 0 120 120" width="100%" height="100%"><circle cx="60" cy="60" r="52" fill="none" stroke="#2b3b56" stroke-width="8"/><circle id="tArc" cx="60" cy="60" r="52" fill="none" stroke="#7fe0a9" stroke-width="8" stroke-linecap="round" stroke-dasharray="326.7" stroke-dashoffset="0"/></svg><div class="bigclock" id="tClock">04:00</div></div>
+      <div class="exname" id="tName" style="font-size:26px"></div>
+      <div class="target" id="tStep"></div>
+      <div class="cue" id="tCue"></div>
     </div>
     <!-- PAUSED -->
     <div id="phPaused" class="stack hidden">
@@ -208,7 +241,7 @@ footer{font-size:12px;color:#8ea0ba;line-height:1.5;margin-top:24px}
       <div class="label">Session complete</div>
       <div class="exname">Nice work 💪</div>
       <p class="target" id="doneSummary"></p>
-      <p class="cue">Cool down 2 minutes: easy walk, slow breathing, light stretch.</p>
+      <p class="cue">Cool-down done. Drink some water and stretch anything that feels tight.</p>
     </div>
   </div>
   <div class="sfoot">
@@ -216,8 +249,12 @@ footer{font-size:12px;color:#8ea0ba;line-height:1.5;margin-top:24px}
     <button class="primary main hidden" id="skipRest">Skip rest</button>
     <button class="primary main hidden" id="resumeBtn">▶ Resume</button>
     <button class="primary main hidden" id="doneBtn">Mark day complete &amp; finish</button>
+    <button class="primary main hidden" id="burnStart">🔥 Start burnout timer</button>
+    <button class="primary main hidden" id="timerSkip">Skip</button>
     <div class="sec" id="secWork"><button id="skipSet">Skip set</button><button id="undoSet">Undo last</button><button id="restNow">Rest now</button></div>
     <div class="sec hidden" id="secRest"><button id="restMinus">−15 s</button><button id="restPlus">+15 s</button><button id="undoSetR">Undo last</button></div>
+    <div class="sec hidden" id="secBurn"><button id="burnLogInstead" style="grid-column:span 3">Log reps without the timer</button></div>
+    <div class="sec hidden" id="secTimer"><button id="timerMinus">−30 s</button><button id="timerPlus">+30 s</button><button id="timerStop">Stop early</button></div>
     <div class="sec hidden" id="secDone"><button id="finishNoMark" style="grid-column:span 3">Finish without marking</button></div>
   </div>
 </div>
@@ -243,7 +280,7 @@ let state;
   if (from === 'v1' && raw) { save(); toast('Upgraded your v1 data. Original kept as a backup.'); }
 })();
 function save() { try { localStorage.setItem(CL.STORAGE_V2, JSON.stringify(state)); } catch (e) { toast('Could not save (storage full or blocked).'); } }
-function plan() { return CL.dayPlan(state.day, state.week); }
+function plan() { return CL.dayPlan(state.day, state.week, state.settings); }
 function sessionKey() { return `${state.week}-${state.day}`; }
 
 /* ---------------- audio / speech / haptics / wake lock ---------------- */
@@ -276,11 +313,19 @@ const Snd = {
     else if (name === 'done') { this.beep(784, 0.15); this.beep(988, 0.15, 0.18); this.beep(1175, 0.3, 0.36); }
     else if (name === 'warn') { this.beep(523, 0.2); this.beep(523, 0.2, 0.3); }
   },
-  speak(text, { urgent = false } = {}) {
-    if (!state.settings.voiceOn || !('speechSynthesis' in window)) return;
+  voices() { try { return speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang)); } catch { return []; } },
+  pickVoice() {
+    const list = this.voices(); if (!list.length) return null;
+    const want = state.settings.voiceURI; if (want) { const v = list.find(v => v.voiceURI === want || v.name === want); if (v) return v; }
+    return list.find(v => /premium/i.test(v.name)) || list.find(v => /enhanced/i.test(v.name)) || list.find(v => /^en-US/i.test(v.lang) && v.localService) || list[0];
+  },
+  quote() { const q = CL.QUOTES; if (!q.length) return ''; state.quoteIdx = ((state.quoteIdx | 0) + 1) % q.length; save(); return q[state.quoteIdx]; },
+  speak(text, { urgent = false, force = false } = {}) {
+    if ((!state.settings.voiceOn && !force) || !('speechSynthesis' in window) || !text) return;
     try {
       if (urgent && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text); u.rate = 1; u.lang = 'en-US';
+      const u = new SpeechSynthesisUtterance(text); u.rate = state.settings.voiceRate || 1; u.lang = 'en-US';
+      const v = this.pickVoice(); if (v) u.voice = v;
       this.lastUtterance = u; // keep a reference: some engines drop GC'd utterances
       speechSynthesis.speak(u);
     } catch {}
@@ -311,7 +356,8 @@ function renderPlan() {
   $('weekNotes').textContent = CL.PHASES[state.week - 1].text + ' The estimate on each day already includes warm-up, rests and cool-down.';
   $('days').replaceChildren(...CL.PROGRAM.map((d, i) => el('button', { class: i === state.day ? 'active' : '', role: 'tab', 'aria-selected': i === state.day, onclick: () => changeDay(i) }, el('span', { text: d.d }), el('span', { class: 'dot', text: state.done[`${state.week}-${i}`] ? '✓' : (d.k === 'Strength' ? '●' : '○') }))));
   $('name').textContent = p.n; $('kind').textContent = p.k; $('focus').textContent = p.f;
-  $('warmLen').textContent = p.light ? '2 minutes' : '4 minutes';
+  $('warmLen').textContent = p.warmupSeconds ? `${Math.round(p.warmupSeconds / 60)} minutes` : 'off';
+  $('coolNote').textContent = (p.cooldownSeconds ? `Cool-down is guided at the end of the session (${Math.round(p.cooldownSeconds / 60)} min). ` : 'Cool-down is off in Settings. ') + 'Stop at the time cap even if a set remains.';
   const est = CL.estimateMinutes(p, settings);
   $('estimate').textContent = `≈ ${est.minutes} min`; $('estimate').className = 'tag ' + (est.fits ? 'good' : 'warn');
   $('estimateNote').textContent = est.fits ? `Estimated ${est.minutes} min including warm-up, ${est.restMin} min of rest and cool-down, at your current rest settings.` : `Estimated ${est.minutes} min — over your ${settings.capMinutes}-minute cap. Shorten rests in Settings or skip a set; the coach will warn you at ${settings.warnMinutes} min.`;
@@ -321,14 +367,15 @@ function renderPlan() {
     const logged = state.sets[it.logKey] || [];
     const row = el('div', { class: 'ex' + (openCues.has(it.id) ? ' open' : '') });
     const head = el('div', { onclick: () => { openCues.has(it.id) ? openCues.delete(it.id) : openCues.add(it.id); row.classList.toggle('open'); } },
-      el('div', { class: 'name', text: it.name }), el('div', { class: 'rx', text: `${it.label} • ${logged.length}/${it.sets} sets logged` }),
-      it.hint ? el('div', { class: 'hint', text: 'This week: ' + it.hint }) : null, el('div', { class: 'cue', text: it.cue }));
+      el('div', { class: 'name', text: it.name }), el('div', { class: 'rx', text: `${it.label}${it.burnout ? ' • last set: ' + it.burnoutSeconds + ' s burnout' : ''} • ${logged.length}/${it.sets} sets logged` }),
+      it.hint ? el('div', { class: 'hint', text: 'This week: ' + it.hint }) : null, el('div', { class: 'cue', text: it.cue }), el('div', { class: 'how', text: it.how }));
+    head.append(el('div', { class: 'exbtns' }, el('button', { class: 'ghost', text: '🔊 Explain', onclick: (e) => { e.stopPropagation(); Snd.unlock(); Snd.speak(`${it.name}. ${it.how}`, { urgent: true, force: true }); } })));
     const dots = el('div', { class: 'dots' }, ...Array.from({ length: Math.max(it.sets, logged.length) }, (_, i) => el('span', { class: i < logged.length ? 'on' : '' })));
     const input = el('input', { type: 'number', min: 0, max: 999, inputmode: 'numeric', 'aria-label': `${it.name} ${it.unit}`, value: logged.length ? logged[logged.length - 1].reps : it.target });
     const log = el('button', { class: 'primary', text: '+ Log set', onclick: () => { const n = Number(input.value); if (!Number.isFinite(n) || n < 0 || n > 999) return toast('Enter a number 0–999'); addSet(it, n); renderPlan(); } });
     const undo = el('button', { class: 'ghost', text: 'Undo', disabled: !logged.length, onclick: () => { removeLastSet(it.logKey); renderPlan(); } });
     row.append(head, dots, el('div', { class: 'logline' }, el('label', { class: 'small muted', text: it.unit === 'min' ? 'min' : it.unit === 'sec' ? 'sec' : 'reps' }), input, el('span', { class: 'spacer' }), log, undo));
-    if (logged.length) row.append(el('div', { class: 'logged', text: 'Logged: ' + logged.map(x => x.reps + (x.unit && x.unit !== 'reps' ? ' ' + x.unit : '')).join(', ') }));
+    if (logged.length) row.append(el('div', { class: 'logged', text: 'Logged: ' + logged.map(x => x.reps + (x.unit && x.unit !== 'reps' ? ' ' + x.unit : '') + (x.burnout ? ' 🔥' : '')).join(', ') }));
     return row;
   });
   $('moves').replaceChildren(...draw(p.items.filter(i => i.section === 'm')));
@@ -388,50 +435,79 @@ $('file').onchange = async e => {
 /* ---------------- settings ---------------- */
 function fillRest(id, vals) { $(id).replaceChildren(...vals.map(v => el('option', { value: v, text: v === 0 ? 'none' : v + ' sec' }))); }
 fillRest('restWithin', [20, 30, 45, 60, 75, 90, 120]); fillRest('restBetween', [30, 45, 60, 75, 90, 120, 150]); fillRest('restLight', [0, 15, 20, 30, 45, 60]);
+const NUM_SETTINGS = ['restWithin', 'restBetween', 'restLight', 'capMinutes', 'warnMinutes', 'extraSets', 'burnoutSeconds', 'warmupSeconds', 'cooldownSeconds'];
+function renderVoices() {
+  const sel = $('voiceURI'), list = Snd.voices(), cur = state.settings.voiceURI;
+  sel.replaceChildren(el('option', { value: '', text: list.length ? 'Automatic (best available)' : 'No voices reported yet' }), ...list.map(v => el('option', { value: v.voiceURI, text: `${v.name} (${v.lang})${/premium|enhanced/i.test(v.name) ? ' ★' : ''}` })));
+  sel.value = list.some(v => v.voiceURI === cur) ? cur : '';
+}
 function renderSettings() {
   const s = state.settings;
-  ['restWithin', 'restBetween', 'restLight', 'capMinutes', 'warnMinutes'].forEach(k => { $(k).value = String(s[k]); });
+  NUM_SETTINGS.forEach(k => { $(k).value = String(s[k]); });
+  $('cueLevel').value = s.cueLevel; $('voiceRate').value = String(s.voiceRate); $('voiceRateVal').textContent = `${s.voiceRate.toFixed(2)}×`;
+  renderVoices();
   document.querySelectorAll('.switch').forEach(b => b.setAttribute('aria-checked', String(!!s[b.dataset.set])));
 }
-['restWithin', 'restBetween', 'restLight', 'capMinutes', 'warnMinutes'].forEach(k => { $(k).onchange = e => { state.settings[k] = Number(e.target.value); if (state.settings.warnMinutes >= state.settings.capMinutes) state.settings.warnMinutes = state.settings.capMinutes - 5; save(); renderSettings(); renderPlan(); }; });
+NUM_SETTINGS.forEach(k => { $(k).onchange = e => { state.settings[k] = Number(e.target.value); if (state.settings.warnMinutes >= state.settings.capMinutes) state.settings.warnMinutes = state.settings.capMinutes - 5; save(); renderSettings(); renderPlan(); }; });
+$('cueLevel').onchange = e => { state.settings.cueLevel = e.target.value; save(); };
+$('voiceURI').onchange = e => { state.settings.voiceURI = e.target.value; save(); Snd.unlock(); Snd.speak('This is how I sound. Rest forty-five seconds, then bodyweight squats.', { urgent: true, force: true }); };
+$('voiceRate').oninput = e => { state.settings.voiceRate = Number(e.target.value); $('voiceRateVal').textContent = `${state.settings.voiceRate.toFixed(2)}×`; save(); };
+$('voiceRate').onchange = () => { Snd.unlock(); Snd.speak('Logged. Rest forty-five seconds.', { urgent: true, force: true }); };
+if ('speechSynthesis' in window) { try { speechSynthesis.addEventListener('voiceschanged', () => { if ($('settings').classList.contains('show')) renderVoices(); }); speechSynthesis.getVoices(); } catch {} }
 document.querySelectorAll('.switch').forEach(b => b.onclick = () => { const k = b.dataset.set; state.settings[k] = !state.settings[k]; if (k === 'voiceOn' && !state.settings.voiceOn) Snd.silence(); if ((k === 'soundOn' || k === 'voiceOn') && state.settings[k]) Snd.unlock(); save(); renderSettings(); });
 $('openSettings').onclick = () => { renderSettings(); $('settings').classList.add('show'); };
 $('closeSettings').onclick = () => $('settings').classList.remove('show');
 $('testBeep').onclick = () => { Snd.unlock(); Snd.cue('go'); };
-$('testVoice').onclick = () => { Snd.unlock(); Snd.speak('Voice prompts are working.', { urgent: true }); };
+$('testVoice').onclick = () => { Snd.unlock(); Snd.speak('Voice prompts are working. Next: standard push-ups, set one.', { urgent: true, force: true }); };
 
 /* ---------------- guided session engine ---------------- */
 let tickTimer = null, cdFired = {}, busyUntil = 0, repDraft = null, lastPhase = null, announcedNext = false;
+let workStartedAt = 0, workKey = '', coachSaid = false, coachIdx = 0, scriptSaid = -1, burnSaid = {}, quoteSaid = false;
 const S = () => state.session;
 
 $('startSession').onclick = () => {
   Snd.unlock();
   if (S() && S().key !== sessionKey()) { if (!confirm('End your other in-progress session and start this one?')) return; endSession(false); }
   if (!S()) {
-    state.session = { key: sessionKey(), startedAt: now(), pausedAt: 0, pausedTotal: 0, restUntil: 0, restTotal: 0, restKind: 'within', skipped: {}, warned: false, capped: false };
+    const p = plan(), t = now();
+    state.session = { key: sessionKey(), startedAt: t, pausedAt: 0, pausedTotal: 0, restUntil: 0, restTotal: 0, restKind: 'within', skipped: {}, warned: false, capped: false,
+      warmUntil: p.warmupSeconds ? t + p.warmupSeconds * 1000 : 0, warmTotal: p.warmupSeconds, warmDone: !p.warmupSeconds, coolUntil: 0, coolTotal: 0, coolDone: !p.cooldownSeconds, burnUntil: 0, burnTotal: 0, burnReady: false };
     save();
-    const pos = CL.sessionPosition(plan(), state.sets, {});
-    Snd.speak(pos.current ? `Starting ${plan().n}. First: ${sayItem(pos.current)}.` : 'Nothing left to do today.', { urgent: true });
+    const pos = CL.sessionPosition(p, state.sets, {});
+    if (p.warmupSeconds) { Snd.speak(`Starting ${p.n}. Warm-up, ${Math.round(p.warmupSeconds / 60)} minutes. ${(p.light ? CL.WARMUP_STEPS_LIGHT : CL.WARMUP_STEPS)[0]}.`, { urgent: true }); if (state.settings.quotesOn) Snd.speak(Snd.quote()); }
+    else Snd.speak(pos.current ? `Starting ${p.n}. First: ${sayItem(pos.current)}.` : 'Nothing left to do today.', { urgent: true });
   }
   openSession();
 };
-function openSession() { repDraft = null; lastPhase = null; announcedNext = false; cdFired = {}; $('session').classList.add('show'); Wake.request(); startTicking(); tick(); }
+function openSession() { repDraft = null; lastPhase = null; announcedNext = false; cdFired = {}; scriptSaid = -1; burnSaid = {}; workKey = ''; $('session').classList.add('show'); Wake.request(); startTicking(); tick(); }
 function startTicking() { clearInterval(tickTimer); tickTimer = setInterval(tick, 250); }
 function closeSession() { clearInterval(tickTimer); tickTimer = null; $('session').classList.remove('show'); Wake.release(); renderPlan(); }
 
 function phase() {
   const s = S(); if (!s) return 'none';
   if (s.pausedAt) return 'paused';
+  const t = now();
+  if (!s.warmDone) { if (s.warmUntil && t < s.warmUntil) return 'warmup'; finishWarmup(); }
   const pos = CL.sessionPosition(plan(), state.sets, s.skipped);
-  if (pos.done) return 'done';
-  if (s.restUntil) return now() < s.restUntil ? 'rest' : 'restover';
+  if (pos.done) {
+    if (s.coolDone) return 'done';
+    if (!s.coolUntil) {
+      const p = plan();
+      if (!p.cooldownSeconds) { s.coolDone = true; save(); return 'done'; }
+      s.coolUntil = t + p.cooldownSeconds * 1000; s.coolTotal = p.cooldownSeconds; save(); scriptSaid = 0;
+      Snd.cue('done'); Snd.speak(`All sets done. Cool down, ${Math.round(p.cooldownSeconds / 60)} minute${p.cooldownSeconds >= 120 ? 's' : ''}. ${CL.COOLDOWN_STEPS[0]}.`, { urgent: true });
+    }
+    if (t < s.coolUntil) return 'cooldown';
+    finishCooldown(); return 'done';
+  }
+  if (s.restUntil) return t < s.restUntil ? 'rest' : 'restover';
+  if (s.burnUntil) return t < s.burnUntil ? 'burnout' : 'burnover';
   return 'work';
 }
 
 function tick() {
   const s = S(); if (!s) return;
   const p = plan(), t = now();
-  // elapsed clock + cap warnings
   const elapsed = CL.elapsedMs(s, t) / 1000, mins = elapsed / 60;
   $('sClock').textContent = CL.fmt(elapsed);
   $('sClock').className = 'clock' + (mins >= state.settings.capMinutes ? ' bad' : mins >= state.settings.warnMinutes ? ' warn' : '');
@@ -440,38 +516,77 @@ function tick() {
 
   let ph = phase();
   if (ph === 'restover') { finishRest(); ph = 'work'; }
+  if (ph === 'burnover') { finishBurn(); ph = 'work'; }
   const pos = CL.sessionPosition(p, state.sets, s.skipped);
   const n = pos.index + 1;
-  $('sStep').textContent = pos.done ? `${pos.total} / ${pos.total} sets` : `Set ${n} / ${pos.total}`;
-  $('session').className = 'show ' + (ph === 'rest' ? 'rest' : ph === 'paused' ? 'paused' : ph === 'done' ? 'complete' : '');
-  show('phWork', ph === 'work'); show('phRest', ph === 'rest'); show('phPaused', ph === 'paused'); show('phDone', ph === 'done');
-  show('logSet', ph === 'work'); show('skipRest', ph === 'rest'); show('resumeBtn', ph === 'paused'); show('doneBtn', ph === 'done');
-  show('secWork', ph === 'work'); show('secRest', ph === 'rest'); show('secDone', ph === 'done');
+  $('sStep').textContent = ph === 'warmup' ? 'Warm-up' : ph === 'cooldown' ? 'Cool-down' : pos.done ? `${pos.total} / ${pos.total} sets` : `Set ${n} / ${pos.total}`;
+  $('session').className = 'show ' + ({ rest: 'rest', paused: 'paused', done: 'complete', burnout: 'burn', warmup: 'warm', cooldown: 'cool' }[ph] || '');
+  const timerPhase = ph === 'warmup' || ph === 'cooldown' || ph === 'burnout';
+  const burnPending = ph === 'work' && !!pos.current && pos.current.burnout && !s.burnReady;
+  show('phWork', ph === 'work'); show('phRest', ph === 'rest'); show('phPaused', ph === 'paused'); show('phDone', ph === 'done'); show('phTimer', timerPhase);
+  show('logSet', ph === 'work' && !burnPending); show('burnStart', burnPending); show('skipRest', ph === 'rest'); show('resumeBtn', ph === 'paused'); show('doneBtn', ph === 'done'); show('timerSkip', ph === 'warmup' || ph === 'cooldown');
+  show('secWork', ph === 'work'); show('secBurn', burnPending); show('secRest', ph === 'rest'); show('secDone', ph === 'done'); show('secTimer', timerPhase);
+  $('timerSkip').textContent = ph === 'warmup' ? 'Skip warm-up' : 'Finish cool-down';
+  $('timerStop').classList.toggle('hidden', ph !== 'burnout'); $('timerMinus').classList.toggle('hidden', ph === 'burnout'); $('timerPlus').classList.toggle('hidden', ph === 'burnout');
   $('pauseBtn').classList.toggle('hidden', ph === 'done' || ph === 'paused');
   $('undoSet').disabled = $('undoSetR').disabled = !lastSessionSet();
 
   if (ph === 'work' && pos.current) {
-    const it = pos.current.item;
-    if (lastPhase !== 'work' || $('wName').dataset.key !== it.logKey + pos.current.setNo) { repDraft = defaultReps(it); $('wName').dataset.key = it.logKey + pos.current.setNo; }
-    $('wSet').textContent = `Set ${pos.current.setNo} of ${it.sets}`;
-    $('wName').textContent = it.name; $('wTarget').textContent = targetText(it); $('wCue').textContent = it.cue;
+    const it = pos.current.item, key = it.logKey + pos.current.setNo;
+    if (key !== workKey) {
+      const fresh = workKey !== '' || lastPhase !== null;
+      workKey = key; workStartedAt = t; coachSaid = false; repDraft = defaultReps(it); $('wHow').classList.add('hidden');
+      // Entering a fresh set from rest/warm-up: say the form cue on set 1 (light) or every set (full).
+      if (fresh && lastPhase !== 'work' && lastPhase !== 'paused' && lastPhase !== 'burnout') {
+        const lvl = state.settings.cueLevel;
+        if (lvl !== 'off' && (pos.current.setNo === 1 || lvl === 'full') && !pos.current.burnout) Snd.speak(it.cue);
+      }
+    }
+    if (burnPending) { $('wSet').textContent = `Set ${pos.current.setNo} of ${it.sets} • burnout`; $('wTarget').textContent = `${it.burnoutSeconds} seconds — as many clean reps as you can`; }
+    else { $('wSet').textContent = s.burnReady ? 'Burnout done • log your reps' : `Set ${pos.current.setNo} of ${it.sets}`; $('wTarget').textContent = targetText(it); }
+    $('wName').textContent = it.name; $('wCue').textContent = it.cue; $('wHow').textContent = it.how;
     $('wHint').textContent = it.hint ? 'This week: ' + it.hint : ''; $('wHint').classList.toggle('hidden', !it.hint);
     $('repVal').textContent = repDraft; $('repUnit').textContent = it.unit === 'reps' ? (it.perSide ? 'reps per side' : 'reps done') : it.unit === 'sec' ? (it.perSide ? 'sec per side' : 'seconds held') : 'minutes';
-    $('wNext').textContent = pos.next ? (pos.next.item.logKey === it.logKey ? `Then: ${it.name}, set ${pos.next.setNo}` : `Up next: ${pos.next.item.name} (${pos.next.item.label})`) : 'Last set of the session';
+    $('wNext').textContent = pos.next ? (pos.next.item.logKey === it.logKey ? `Then: ${it.name}, set ${pos.next.setNo}${pos.next.burnout ? ' (burnout)' : ''}` : `Up next: ${pos.next.item.name} (${pos.next.item.label})`) : 'Last set of the session';
+    if (state.settings.cueLevel === 'full' && !coachSaid && !burnPending && !s.burnReady && it.kind === 'reps' && t - workStartedAt > 25000) { coachSaid = true; Snd.speak(CL.COACH_LINES[coachIdx++ % CL.COACH_LINES.length]); }
   } else if (ph === 'rest') {
     const left = CL.secondsLeft(s.restUntil, t), nxt = pos.current;
     $('rClock').textContent = CL.fmt(left);
     $('ringArc').setAttribute('stroke-dashoffset', String(326.7 * (1 - Math.min(1, left / Math.max(1, s.restTotal)))));
     $('rLabel').textContent = s.restKind === 'between' ? 'Rest • next exercise' : 'Rest • up next';
-    if (nxt) { $('rNext').textContent = `${nxt.item.name} • set ${nxt.setNo} of ${nxt.item.sets}`; $('rTarget').textContent = targetText(nxt.item); $('rCue').textContent = nxt.item.cue; }
-    if (!announcedNext && nxt && left <= 10) { announcedNext = true; Snd.speak(`Next: ${sayItem(nxt)}.`); }
+    if (nxt) { $('rNext').textContent = `${nxt.item.name} • set ${nxt.setNo} of ${nxt.item.sets}${nxt.burnout ? ' • 🔥 burnout' : ''}`; $('rTarget').textContent = nxt.burnout ? `${nxt.item.burnoutSeconds} s, as many clean reps as you can` : targetText(nxt.item); $('rCue').textContent = nxt.item.cue; }
+    // A motivational line once per rest, a few seconds in, on rests long enough to hear it.
+    if (!quoteSaid && state.settings.quotesOn && s.restTotal >= 30 && s.restTotal - left >= 4 && left > 14) { quoteSaid = true; Snd.speak(Snd.quote()); }
+    if (!announcedNext && nxt && left <= 10) { announcedNext = true; Snd.speak(`Next: ${sayItem(nxt)}${nxt.burnout ? ', burnout set' : ''}.`, { urgent: true }); }
     if (state.settings.countdownOn && left <= 3 && left >= 1 && !cdFired[left]) { cdFired[left] = true; Snd.cue('tick'); }
+  } else if (timerPhase) {
+    const until = ph === 'warmup' ? s.warmUntil : ph === 'cooldown' ? s.coolUntil : s.burnUntil;
+    const total = ph === 'warmup' ? s.warmTotal : ph === 'cooldown' ? s.coolTotal : s.burnTotal;
+    const left = CL.secondsLeft(until, t);
+    $('tClock').textContent = CL.fmt(left);
+    $('tArc').setAttribute('stroke-dashoffset', String(326.7 * (1 - Math.min(1, left / Math.max(1, total)))));
+    $('tArc').setAttribute('stroke', ph === 'burnout' ? '#ffcf6b' : '#7fe0a9');
+    if (ph === 'burnout') {
+      const it = pos.current.item;
+      $('tLabel').textContent = '🔥 Burnout set'; $('tName').textContent = it.name; $('tStep').textContent = 'As many clean reps as you can. Stop when form breaks.'; $('tCue').textContent = it.cue;
+      const half = Math.round(total / 2);
+      if (!burnSaid.half && left <= half && left > 10) { burnSaid.half = true; Snd.speak('Halfway. Keep breathing.'); }
+      if (!burnSaid.ten && left <= 10 && left > 3) { burnSaid.ten = true; Snd.speak('Ten seconds.'); }
+      if (state.settings.countdownOn && left <= 3 && left >= 1 && !cdFired[left]) { cdFired[left] = true; Snd.cue('tick'); }
+    } else {
+      const steps = ph === 'warmup' ? (p.light ? CL.WARMUP_STEPS_LIGHT : CL.WARMUP_STEPS) : CL.COOLDOWN_STEPS;
+      const st = CL.scriptStep(steps, total, left);
+      $('tLabel').textContent = ph === 'warmup' ? 'Warm-up' : 'Cool-down'; $('tName').textContent = st.text; $('tStep').textContent = `${st.index + 1} of ${steps.length}`;
+      $('tCue').textContent = ph === 'warmup' ? (pos.current ? `Then: ${sayItem(pos.current)}` : '') : 'Breathe slowly. Nothing should hurt.';
+      if (st.index !== scriptSaid) { scriptSaid = st.index; if (st.index > 0) Snd.speak(st.text + '.'); }
+      if (ph === 'warmup' && state.settings.countdownOn && left <= 3 && left >= 1 && !cdFired[left]) { cdFired[left] = true; Snd.cue('tick'); }
+    }
   } else if (ph === 'paused') {
-    $('pausedInfo').textContent = s.restUntil ? 'Rest timer is paused too.' : (pos.current ? `Next up: ${sayItem(pos.current)}.` : '');
+    $('pausedInfo').textContent = s.restUntil ? 'Rest timer is paused too.' : s.burnUntil ? 'Burnout timer is paused.' : (pos.current ? `Next up: ${sayItem(pos.current)}.` : '');
   } else if (ph === 'done') {
     $('doneSummary').textContent = `${sessionSetCount()} sets logged in ${CL.fmt(elapsed)}.`;
   }
-  if (ph === 'done' && lastPhase !== 'done' && lastPhase !== null) { Snd.cue('done'); Snd.speak('All sets complete. Great work. Cool down.', { urgent: true }); }
+  if (ph === 'done' && lastPhase !== 'done' && lastPhase !== null && lastPhase !== 'cooldown') { Snd.cue('done'); Snd.speak('All sets complete. Great work.', { urgent: true }); }
   lastPhase = ph;
 }
 function show(id, on) { $(id).classList.toggle('hidden', !on); }
@@ -485,22 +600,35 @@ function guard() { const t = now(); if (t < busyUntil) return false; busyUntil =
 
 $('repMinus').onclick = () => { repDraft = Math.max(0, (repDraft || 0) - 1); $('repVal').textContent = repDraft; };
 $('repPlus').onclick = () => { repDraft = Math.min(999, (repDraft || 0) + 1); $('repVal').textContent = repDraft; };
+$('howBtn').onclick = () => { const box = $('wHow'); box.classList.toggle('hidden'); if (!box.classList.contains('hidden')) { Snd.unlock(); Snd.speak(box.textContent, { urgent: true, force: true }); } else Snd.silence(); };
 
-$('logSet').onclick = () => {
-  if (!guard()) return; const s = S(); if (!s || s.pausedAt) return;
-  Snd.unlock();
-  const p = plan(), pos = CL.sessionPosition(p, state.sets, s.skipped); if (!pos.current) return;
+function logCurrent() {
+  const s = S(); const p = plan(), pos = CL.sessionPosition(p, state.sets, s.skipped); if (!pos.current) return;
   const it = pos.current.item;
-  addSet(it, repDraft ?? it.target);
+  const entry = { reps: Math.round(repDraft ?? it.target), at: new Date().toISOString(), unit: it.unit };
+  if (pos.current.burnout && s.burnReady) { entry.burnout = true; entry.secs = s.burnTotal || it.burnoutSeconds; }
+  state.sets[it.logKey] ||= []; if (state.sets[it.logKey].length >= 50) return toast('Set limit reached for this exercise');
+  state.sets[it.logKey].push(entry); s.burnReady = false; s.burnUntil = 0; save();
   Snd.cue('logged'); Snd.vibrate(40);
   const after = CL.sessionPosition(p, state.sets, s.skipped);
   if (after.done) { s.restUntil = 0; save(); tick(); return; }
   const between = after.current.item.logKey !== it.logKey;
-  const dur = CL.restFor(it, between, p.light, state.settings);
-  beginRest(dur, between ? 'between' : 'within', after.current);
+  beginRest(CL.restFor(it, between, p.light, state.settings), between ? 'between' : 'within', after.current);
+}
+$('logSet').onclick = () => { if (!guard()) return; const s = S(); if (!s || s.pausedAt) return; Snd.unlock(); logCurrent(); };
+$('burnLogInstead').onclick = () => { if (!guard()) return; const s = S(); if (!s) return; s.burnReady = true; save(); tick(); };
+$('burnStart').onclick = () => {
+  if (!guard()) return; const s = S(); if (!s || s.pausedAt) return; Snd.unlock();
+  const pos = CL.sessionPosition(plan(), state.sets, s.skipped); if (!pos.current) return;
+  const secs = pos.current.item.burnoutSeconds; s.burnUntil = now() + secs * 1000; s.burnTotal = secs; s.burnReady = false; save();
+  cdFired = {}; burnSaid = {}; Snd.cue('go');
+  Snd.speak(`Burnout set, ${secs} seconds. ${pos.current.item.name}. As many clean reps as you can. Go.`, { urgent: true });
+  tick();
 };
+function finishBurn() { const s = S(); s.burnUntil = 0; s.burnReady = true; save(); Snd.cue('go'); Snd.vibrate([150, 80, 150]); Snd.speak('Stop. Log your reps.', { urgent: true }); }
+$('timerStop').onclick = () => { if (!guard()) return; const s = S(); if (!s || !s.burnUntil) return; finishBurn(); tick(); };
 function beginRest(dur, kind, nextQ) {
-  const s = S(); cdFired = {}; announcedNext = false;
+  const s = S(); cdFired = {}; announcedNext = false; quoteSaid = false;
   if (dur <= 0) { s.restUntil = 0; save(); Snd.speak(`Next: ${sayItem(nextQ)}.`, { urgent: true }); tick(); return; }
   s.restUntil = now() + dur * 1000; s.restTotal = dur; s.restKind = kind; save();
   Snd.speak(kind === 'between' ? `Logged. Rest ${dur} seconds, then ${nextQ.item.name}.` : `Logged. Rest ${dur} seconds.`, { urgent: true });
@@ -511,8 +639,17 @@ function finishRest() {
   const s = S(); s.restUntil = 0; save();
   const pos = CL.sessionPosition(plan(), state.sets, s.skipped);
   Snd.cue('go'); Snd.vibrate([150, 80, 150]);
-  if (pos.current) Snd.speak(`Go. ${pos.current.item.name}.`, { urgent: true });
+  if (pos.current) Snd.speak(pos.current.burnout ? `Go. ${pos.current.item.name}. Start the burnout timer when you're ready.` : `Go. ${pos.current.item.name}.`, { urgent: true });
 }
+function finishWarmup() {
+  const s = S(); s.warmUntil = 0; s.warmDone = true; save();
+  const pos = CL.sessionPosition(plan(), state.sets, s.skipped);
+  Snd.cue('go'); if (pos.current) Snd.speak(`Warm-up done. First: ${sayItem(pos.current)}.`, { urgent: true });
+}
+function finishCooldown() { const s = S(); s.coolUntil = 0; s.coolDone = true; save(); Snd.cue('done'); Snd.speak('Cool-down complete. Great work today.', { urgent: true }); if (state.settings.quotesOn) Snd.speak(Snd.quote()); }
+$('timerSkip').onclick = () => { if (!guard()) return; const s = S(); if (!s) return; if (!s.warmDone) finishWarmup(); else if (s.coolUntil) finishCooldown(); tick(); };
+$('timerMinus').onclick = () => { const s = S(); if (!s) return; if (!s.warmDone && s.warmUntil) s.warmUntil -= 30000; else if (s.coolUntil) s.coolUntil -= 30000; save(); tick(); };
+$('timerPlus').onclick = () => { const s = S(); if (!s) return; if (!s.warmDone && s.warmUntil) { s.warmUntil += 30000; s.warmTotal += 30; } else if (s.coolUntil) { s.coolUntil += 30000; s.coolTotal += 30; } save(); tick(); };
 $('skipRest').onclick = () => { if (!guard()) return; const s = S(); if (!s || !s.restUntil) return; finishRest(); tick(); };
 $('restPlus').onclick = () => { const s = S(); if (s && s.restUntil) { s.restUntil += 15000; s.restTotal += 15; save(); tick(); } };
 $('restMinus').onclick = () => { const s = S(); if (s && s.restUntil) { s.restUntil -= 15000; save(); tick(); } };
@@ -520,7 +657,7 @@ $('restNow').onclick = () => { if (!guard()) return; const s = S(); if (!s) retu
 $('skipSet').onclick = () => {
   if (!guard()) return; const s = S(); if (!s) return;
   const p = plan(), pos = CL.sessionPosition(p, state.sets, s.skipped); if (!pos.current) return;
-  s.skipped[pos.current.item.logKey] = (s.skipped[pos.current.item.logKey] || 0) + 1; s.restUntil = 0; save();
+  s.skipped[pos.current.item.logKey] = (s.skipped[pos.current.item.logKey] || 0) + 1; s.restUntil = 0; s.burnUntil = 0; s.burnReady = false; save();
   const after = CL.sessionPosition(p, state.sets, s.skipped);
   if (after.current) Snd.speak(`Skipped. Next: ${sayItem(after.current)}.`, { urgent: true });
   tick();
@@ -528,11 +665,11 @@ $('skipSet').onclick = () => {
 function undo() {
   if (!guard()) return; const s = S(); if (!s) return;
   const last = lastSessionSet(); if (!last) return toast('Nothing to undo in this session');
-  removeLastSet(last.key); s.restUntil = 0; save(); Snd.speak('Undone.', { urgent: true }); toast('Last set removed'); tick();
+  removeLastSet(last.key); s.restUntil = 0; s.burnUntil = 0; s.burnReady = false; s.coolUntil = 0; s.coolDone = !plan().cooldownSeconds; save(); Snd.speak('Undone.', { urgent: true }); toast('Last set removed'); tick();
 }
 $('undoSet').onclick = undo; $('undoSetR').onclick = undo;
 $('pauseBtn').onclick = () => { const s = S(); if (!s || s.pausedAt) return; s.pausedAt = now(); save(); Snd.silence(); tick(); };
-$('resumeBtn').onclick = () => { const s = S(); if (!s || !s.pausedAt) return; const d = now() - s.pausedAt; s.pausedTotal += d; if (s.restUntil) s.restUntil += d; s.pausedAt = 0; save(); Snd.unlock(); tick(); };
+$('resumeBtn').onclick = () => { const s = S(); if (!s || !s.pausedAt) return; const d = now() - s.pausedAt; s.pausedTotal += d; for (const k of ['restUntil', 'burnUntil', 'warmUntil', 'coolUntil']) if (s[k]) s[k] += d; s.pausedAt = 0; save(); Snd.unlock(); tick(); };
 $('endSession').onclick = () => { const s = S(); if (!s) return closeSession(); const pos = CL.sessionPosition(plan(), state.sets, s.skipped); if (!pos.done && !confirm('End this session? Logged sets are kept.')) return; endSession(false); closeSession(); };
 $('doneBtn').onclick = () => { endSession(true); closeSession(); };
 $('finishNoMark').onclick = () => { endSession(false); closeSession(); };

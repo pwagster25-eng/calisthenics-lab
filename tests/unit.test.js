@@ -11,7 +11,7 @@ test('every program day resolves to known exercises with sane prescriptions', ()
     assert.ok(p.items.length >= 4);
     for (const it of p.items) {
       assert.ok(CL.EX[it.id], it.id);
-      assert.ok(it.sets >= 1 && it.sets <= 3, `${it.id} sets ${it.sets}`);
+      assert.ok(it.sets >= 1 && it.sets <= 4, `${it.id} sets ${it.sets}`);
       assert.ok(it.target > 0);
       assert.match(it.logKey, /^[1-8]-[0-6]-[a-z0-9-]+$/);
     }
@@ -30,15 +30,29 @@ test('v1.2 defect: cardio/mobility items no longer become 6-12 "sets"', () => {
 test('week scaling: low→high reps, week 7 adds a set to the first exercise, week 8 deloads', () => {
   const w1 = CL.dayPlan(0, 1).items[0], w3 = CL.dayPlan(0, 3).items[0], w7 = CL.dayPlan(0, 7), w8 = CL.dayPlan(0, 8);
   assert.equal(w1.target, 12); assert.equal(w3.target, 15);
-  assert.equal(w7.items[0].sets, 3); assert.equal(w7.items[1].sets, 3); assert.equal(w7.items[2].sets, 2);
-  assert.equal(w8.items[0].sets, 1); assert.equal(w8.items[0].target, 12);
+  assert.equal(w7.items[0].sets, 4); assert.equal(w7.items[1].sets, 4); assert.equal(w7.items[2].sets, 3);
+  assert.equal(w8.items[0].sets, 2); assert.equal(w8.items[0].target, 12);
+  // extraSets setting: 0 restores the v1.2 two-set prescription; core/mobility never change
+  const lean = CL.dayPlan(0, 1, Object.assign({}, S, { extraSets: 0 }));
+  assert.equal(lean.items[0].sets, 2); assert.equal(lean.items.find(i => i.group === 'core').sets, 2);
+  assert.equal(CL.dayPlan(0, 1, S).items.find(i => i.group === 'core').sets, 2);
+  // burnout flag only on the last set of strength rep exercises
+  const q = CL.buildQueue(CL.dayPlan(0, 1, S));
+  assert.deepEqual(q.filter(x => x.burnout).map(x => x.item.id + x.setNo), ['standard-push-ups3', 'bodyweight-squats3', 'decline-push-ups3', 'reverse-lunges3', 'reverse-snow-angels3']);
+  assert.ok(!CL.buildQueue(CL.dayPlan(0, 1, Object.assign({}, S, { burnoutOn: false }))).some(x => x.burnout));
+  assert.ok(!CL.buildQueue(CL.dayPlan(2, 1, S)).some(x => x.burnout && x.item.kind !== 'reps'), 'holds never burn out');
+  // every exercise has a how-to
+  for (const id of Object.keys(CL.EX)) assert.ok(CL.EX[id].how && CL.EX[id].how.length > 40, id);
   assert.ok(CL.dayPlan(0, 5).items[0].hint.length > 0, 'week 5 shows a harder-variation hint');
 });
 
 test('time estimate: every day fits the 45-minute default cap; weeks 1–6 strength days also fit a 30-minute cap at default rests', () => {
   for (let w = 1; w <= 8; w++) for (let d = 0; d < 7; d++) assert.ok(CL.estimateMinutes(CL.dayPlan(d, w), S).fits, `W${w} day ${d}`);
-  const cap30 = Object.assign({}, S, { capMinutes: 30 });
-  for (let w = 1; w <= 6; w++) for (const d of [0, 2, 4, 5]) { const e = CL.estimateMinutes(CL.dayPlan(d, w), cap30); assert.ok(e.fits, `W${w} day ${d} = ${e.minutes} min`); }
+  const cap30 = Object.assign({}, S, { capMinutes: 30, extraSets: 0, burnoutOn: false });
+  for (let w = 1; w <= 6; w++) for (const d of [0, 2, 4, 5]) { const e = CL.estimateMinutes(CL.dayPlan(d, w, cap30), cap30); assert.ok(e.fits, `W${w} day ${d} = ${e.minutes} min`); }
+  // warm-up/cool-down settings flow into the estimate
+  const noWarm = Object.assign({}, S, { warmupSeconds: 0, cooldownSeconds: 0 });
+  assert.ok(CL.estimateMinutes(CL.dayPlan(0, 1, noWarm), noWarm).minutes <= CL.estimateMinutes(CL.dayPlan(0, 1, S), S).minutes - 5);
   // and that it is honest: long rests do NOT fit a 30-minute cap
   const e = CL.estimateMinutes(CL.dayPlan(0, 3), Object.assign({}, cap30, { restWithin: 90, restBetween: 120 }));
   assert.equal(e.fits, false);
@@ -55,7 +69,7 @@ test('rest type: within vs between, light days, core finisher, no rest for cardi
 });
 
 test('queue position is derived from the log: list logging, guided logging, undo and skip agree', () => {
-  const p = CL.dayPlan(0, 1); // Mon: 5×2 + 2×2 = 14 sets
+  const p = CL.dayPlan(0, 1, Object.assign({}, S, { extraSets: 0 })); // Mon at 2 sets: 5×2 + 2×2 = 14 sets
   const sets = {};
   let pos = CL.sessionPosition(p, sets, {});
   assert.equal(pos.total, 14); assert.equal(pos.index, 0); assert.equal(pos.current.setNo, 1);
@@ -63,7 +77,7 @@ test('queue position is derived from the log: list logging, guided logging, undo
   sets[p.items[0].logKey] = [{ reps: 12 }];
   pos = CL.sessionPosition(p, sets, {});
   assert.equal(pos.index, 1); assert.equal(pos.current.item.id, 'standard-push-ups'); assert.equal(pos.current.setNo, 2);
-  assert.equal(pos.current.lastOfExercise, true);
+  assert.equal(pos.current.lastOfExercise, true); assert.equal(pos.current.burnout, true);
   // user logs a squat set out of order via the list → coach still asks for push-up set 2
   sets[p.items[1].logKey] = [{ reps: 15 }];
   pos = CL.sessionPosition(p, sets, {});
@@ -88,6 +102,8 @@ test('queue position is derived from the log: list logging, guided logging, undo
 });
 
 test('v1 storage/backups migrate positionally to stable ids and keep every entry', () => {
+  const burn = CL.cleanSetEntry({ reps: 14, burnout: true, secs: 40, unit: 'reps' });
+  assert.deepEqual(burn, { reps: 14, unit: 'reps', burnout: true, secs: 40 });
   const v1 = {
     done: { '1-0': true, '2-5': true, 'junk': true },
     checks: {}, prs: { 1: 22, 9: 5 },

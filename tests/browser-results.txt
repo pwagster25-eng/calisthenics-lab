@@ -9,6 +9,11 @@ PASS v2: changing day mid-session asks for confirmation; reload restores a pause
 PASS v2: session completion screen, mark complete, history and done flag
 PASS v2: light day — walking has no rest and advances straight to bird dogs
 PASS v2: 40-minute warning and 45-minute cap banners fire without blocking alerts
+PASS v2.1: warm-up → sets → burnout timer → cool-down → done, with how-to and quotes
+PASS v2.1: settings sheet lists voice controls and the plan shows burnout labels
 PASS v2: import a v1 backup file (merge) keeps existing data and upgrades keys
-PASS v2: crafted backup cannot inject markup
+FAIL v2: crafted backup cannot inject markup — page.evaluate: TypeError: Cannot read properties of undefined (reading 'length')
+    at eval (eval at evaluate (:290:30), <anonymous>:1:88)
+    at UtilityScript.evaluate (<anonymous>:292:16)
+    at UtilityScript.<anonymous> (<anonymous>:1:44)
 PASS v2: no console errors during the run
