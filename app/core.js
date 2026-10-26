@@ -322,7 +322,8 @@
     let work = 0, rest = 0;
     plan.items.forEach((it, idx) => {
       const sides = it.perSide ? 2 : 1;
-      let per = it.kind === 'reps' ? it.target * 2 * sides + 6 : it.kind === 'hold' ? it.target * sides + 8 : it.target * 60;
+      // Calibrated 2026-10-25: Friday (19 sets, 5 burnouts, 4+2 min warm-up/cool-down, 14 min rest) took 27:34 → ~1.5 s/rep + 4 s per set.
+      let per = it.kind === 'reps' ? it.target * 1.5 * sides + 4 : it.kind === 'hold' ? it.target * sides + 6 : it.target * 60;
       work += per * it.sets;
       if (it.burnout) work += it.burnoutSeconds - per + 10; // the last set is timed, not counted
       for (let k = 1; k <= it.sets; k++) {

@@ -1,5 +1,9 @@
 # Change log
 
+## v3.1.1 (2026-10-25)
+
+- Estimator recalibrated from a real Friday session: 19 sets with burnouts, warm-up and cool-down in 27:34 against a 31-minute estimate. Ordinary sets now count 1.5 s/rep + 4 s (was 2 s + 6 s); holds +6 s. Strength days now estimate ≈ 29 min at default settings — still slightly conservative on purpose, since the cap warning should err early.
+
 ## v3.1.0 (2026-10-25) — music keeps playing
 
 User report: music stopped whenever the coach spoke (the clips played through a media element, which iOS treats as a music player and lets it take over the audio session).

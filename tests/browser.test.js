@@ -357,10 +357,10 @@ const V1_SEED = {
       const reg = await navigator.serviceWorker.ready;
       for (let i = 0; i < 60; i++) { const a = await caches.open('calisthenics-lab-audio-v1'); if ((await a.keys()).length >= 294) break; await new Promise(r => setTimeout(r, 500)); }
       const keys = await caches.keys(); const a = await caches.open('calisthenics-lab-audio-v1'); const ak = (await a.keys()).map(r => r.url);
-      const c = await caches.open('calisthenics-lab-v3.1.0'); const ck = (await c.keys()).map(r => r.url);
+      const c = await caches.open('calisthenics-lab-v3.1.1'); const ck = (await c.keys()).map(r => r.url);
       return { keys, audio: ak.length, essential: ak.filter(u => /\/(ex|next|cue|rest|set)_/.test(u)).length, how: ak.filter(u => /\/how_/.test(u)).length, shell: ck.some(u => /figures\.js/.test(u)) && ck.some(u => /manifest\.json/.test(u)), scope: reg.scope };
     });
-    assert.ok(info.keys.includes('calisthenics-lab-v3.1.0') && info.keys.includes('calisthenics-lab-audio-v1'), JSON.stringify(info));
+    assert.ok(info.keys.includes('calisthenics-lab-v3.1.1') && info.keys.includes('calisthenics-lab-audio-v1'), JSON.stringify(info));
     assert.ok(info.shell, 'shell assets cached');
     assert.ok(info.essential >= 290, 'essential clips cached: ' + info.essential);
   });
