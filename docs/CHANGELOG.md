@@ -1,5 +1,9 @@
 # Change log
 
+## v3.0.1 (2026-10-25)
+
+- The "+ Add an exercise" buttons under Main work and Core finisher are now always visible (they were only shown in edit mode). Adding asks the same question as swapping: just for today, or saved to the plan.
+
 ## v3.0 (2026-10-25) — editable programme, exercise library, figures, recorded coach, new look
 
 User requests (voice conversation): swap exercises in and out of the plan from a bodyweight-only library; a visual for every exercise ("not a cheesy stick figure"); a more aesthetic, less all-blue interface ("you design it"); a gritty, non-robotic coach voice — approved use of ElevenLabs for pre-recorded audio (voice "Apollo"); and both permanent plan edits **and** quick "just for today" swaps.

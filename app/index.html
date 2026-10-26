@@ -76,7 +76,7 @@ footer{font-size:12px;color:var(--dim);line-height:1.5;margin-top:24px}
 .switch[aria-checked=true]{background:var(--mint)}.switch[aria-checked=true]::after{left:23px}
 .sheet{position:fixed;inset:0;background:var(--bg);z-index:40;overflow:auto;padding:calc(12px + var(--safe-t)) 16px calc(24px + var(--safe-b));display:none}.sheet.show{display:block}
 .sheet .inner{max-width:720px;margin:auto}
-.addbtn{width:100%;border:1px dashed var(--line);background:transparent;color:var(--muted);min-height:44px;margin-top:6px;display:none}.editing .addbtn{display:block}
+.addbtn{width:100%;border:1px dashed var(--line);background:transparent;color:var(--muted);min-height:44px;margin-top:6px;display:block}
 .editnote{display:none;background:#1b1f2a;border:1px solid #2e3650;border-radius:12px;padding:10px 12px;font-size:13px;color:#cfd6e6;margin-top:10px}.editing .editnote{display:block}
 /* figures */
 svg.fig{display:block;color:var(--text);height:120px;width:auto;max-width:100%;margin:auto}
@@ -148,7 +148,7 @@ input[type=range]{width:160px;accent-color:var(--accent)}
     <p class="small muted" id="estimateNote" style="margin:10px 0 0"></p>
     <button class="primary startbtn" id="startSession">▶ Start guided session</button>
     <div class="toolbar"><button class="ghost" id="editDay">✎ Edit this day</button><button class="ghost hidden" id="resetDay">Reset to default</button></div>
-    <div class="editnote" id="editNote">Editing. Use ↑ ↓ to reorder, ⇄ to swap in a different exercise, ✕ to remove. Each change asks whether it is for today only or saved to your plan.</div>
+    <div class="editnote" id="editNote">Editing. Use ↑ ↓ to reorder, ⇄ to swap in a different exercise, ✕ to remove, or the + buttons under each section to add one. Each change asks whether it is for today only or saved to your plan.</div>
 
     <h3>Warm-up • <span id="warmLen">4 minutes</span></h3>
     <p class="muted small" style="margin:0">Guided in the session: marching, arm circles, easy squats, hip circles, a few easy push-ups. Length is in Settings.</p>
@@ -177,7 +177,7 @@ input[type=range]{width:160px;accent-color:var(--accent)}
     <div id="history" class="small muted"></div>
     <details><summary>Movement guidance and substitutions</summary>
       <p class="small">Push-ups: straight trunk, stop 2–3 reps before failure. Pike: hips high, lower the head between the hands. Cobra press-ups: hips stay on the floor; press up only as far as is comfortable. No equipment is scheduled. Reverse snow angels, Y-T-W/W raises, prone swimmers and prone lat pulls train the upper back at low load; they are not a substitute for loaded pulling. For diamond, decline and pike variations, elevate the hands or shorten the range when needed. Use a wall or railing for balance on single-leg work.</p>
-      <p class="small">Tap any exercise for the picture sequence and a full how-to, or 🔊 to have the coach explain it. "Edit this day" lets you swap any exercise for another from the library — for today only, or permanently.</p>
+      <p class="small">Tap any exercise for the picture sequence and a full how-to, or 🔊 to have the coach explain it. The "+ Add" buttons under Main work and Core finisher add an exercise from the library; "Edit this day" also lets you swap, reorder and remove — each change for today only, or permanently.</p>
     </details>
     <details><summary>Safety and recovery</summary>
       <p class="small">Strength sessions should feel about 7/10 effort; Tue, Thu and Sun are easy. Keep breathing on every rep — exhale on the effort, never hold your breath or strain. Stop for chest pain, faintness, severe headache, or unusual breathlessness. If discomfort persists, consult a clinician.</p>
