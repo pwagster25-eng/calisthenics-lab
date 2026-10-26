@@ -62,7 +62,7 @@ const V1_SEED = {
 
   /* ---------- B. v2 migration ---------- */
   await step('v2: boots from v1 storage, migrates, leaves v1 key untouched', async () => {
-    await page.goto(BASE + '/app/index.html');
+    await page.goto(BASE + '/app/index.html?nosw');
     await page.evaluate((seed) => { localStorage.clear(); localStorage.setItem('calisthenics-v1', JSON.stringify(seed)); }, V1_SEED);
     await page.reload();
     const { v1, v2 } = await page.evaluate(() => ({ v1: localStorage.getItem('calisthenics-v1'), v2: JSON.parse(localStorage.getItem('calisthenics-v2')) }));
@@ -72,7 +72,7 @@ const V1_SEED = {
     assert.equal(v2.prs['1'], 22);
     await page.waitForSelector('#moves .ex');
     const first = await page.locator('#moves .ex').first().textContent();
-    assert.match(first, /Standard push-ups/); assert.match(first, /2\/3 sets logged/); assert.match(first, /Logged: 12, 11/);
+    assert.match(first, /Standard push-ups/); assert.match(first, /2\/3 (sets )?logged/); assert.match(first, /Logged: 12, 11/);
     await page.click('[role=tab]:nth-child(6)'); // Sat
     assert.match(await page.textContent('#extraWrap'), /Decline push-ups[\s\S]*Logged: 9/, 'orphaned log still visible');
     await page.screenshot({ path: path.join(SHOTS, '01-plan-view.png'), fullPage: false });
@@ -84,7 +84,7 @@ const V1_SEED = {
     await page.evaluate(() => localStorage.clear());
     await seedSettings(page);
     await page.clock.install({ time: T0 });
-    await page.goto(BASE + '/app/index.html');
+    await page.goto(BASE + '/app/index.html?nosw');
     await page.click('#startSession');
     assert.ok(await page.isVisible('#session'));
     assert.equal((await page.textContent('#wSet')).trim(), 'Set 1 of 2');
@@ -158,7 +158,7 @@ const V1_SEED = {
   });
   await step('v2: session completion screen, mark complete, history and done flag', async () => {
     await page.evaluate(() => localStorage.clear()); await seedSettings(page);
-    await page.goto(BASE + '/app/index.html'); await page.clock.runFor(300);
+    await page.goto(BASE + '/app/index.html?nosw'); await page.clock.runFor(300);
     await page.click('#startSession'); await page.clock.runFor(300);
     for (let i = 0; i < 14; i++) { await page.click('#logSet'); await page.clock.runFor(700); if (await page.isVisible('#skipRest')) { await page.click('#skipRest'); await page.clock.runFor(700); } }
     assert.ok(await page.isVisible('#phDone'), 'done screen: ' + await page.textContent('#sStep') + ' / ' + await page.textContent('#wName') + ' / phases ' + JSON.stringify(await page.evaluate(() => ({ s: window.__cl.state.session, d: window.__cl.state.day, w: window.__cl.state.week, keys: Object.keys(window.__cl.state.sets) }))));
@@ -197,7 +197,7 @@ const V1_SEED = {
   });
   await step('v2.1: warm-up → sets → burnout timer → cool-down → done, with how-to and quotes', async () => {
     await page.evaluate(() => localStorage.clear());
-    await page.goto(BASE + '/app/index.html'); await page.clock.runFor(600);
+    await page.goto(BASE + '/app/index.html?nosw'); await page.clock.runFor(600);
     await page.click('#startSession'); await page.clock.runFor(600);
     assert.ok(await page.isVisible('#phTimer'), 'warm-up timer shown');
     assert.equal((await page.textContent('#tLabel')).trim(), 'Warm-up'); assert.equal((await page.textContent('#tClock')).trim(), '04:00');
@@ -253,7 +253,7 @@ const V1_SEED = {
   });
   await step('v2: import a v1 backup file (merge) keeps existing data and upgrades keys', async () => {
     await page.evaluate(() => localStorage.clear());
-    await page.goto(BASE + '/app/index.html');
+    await page.goto(BASE + '/app/index.html?nosw');
     await page.evaluate(() => { localStorage.setItem('calisthenics-v2', JSON.stringify({ schemaVersion: 2, sets: { '1-2-pike-push-ups': [{ reps: 6, at: '2026-10-02T10:00:00.000Z' }] } })); });
     await page.reload();
     const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click('#import')]);
@@ -272,9 +272,99 @@ const V1_SEED = {
     assert.equal(await page.locator('#pwned2, #pwned3').count(), 0);
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('calisthenics-v2')).sets['1-0-bodyweight-squats'].length), 1, 'the valid entry survived');
   });
+  /* ---------- G. v3: editable programme, library picker, figures, recorded coach ---------- */
+  await step('v3: swap an exercise for today only — plan updates, badge shows, logs key by the new id, and it expires tomorrow', async () => {
+    await page.goto(BASE + '/app/index.html?nosw'); await page.evaluate(() => localStorage.clear()); await page.reload();
+    const T0 = Date.parse('2026-10-26T15:00:00'); await page.clock.install({ time: T0 }); // local-time date rolls over at midnight
+    await page.click('#editDay');
+    assert.equal(await page.evaluate(() => window.__cl.editing), true);
+    await page.click('#moves .ex:nth-child(1) .editbar button:nth-child(3)'); // ⇄ Swap
+    assert.ok(await page.isVisible('#library'));
+    assert.match(await page.textContent('#libEyebrow'), /Replace Standard push-ups/);
+    await page.click('#libGroups button:nth-child(1)'); // All
+    const count = await page.locator('#libList .lib').count(); assert.ok(count >= 80, 'library rows ' + count);
+    await page.click('#libGroups button:nth-child(2)'); // Push
+    await page.click('#libList .lib:has-text("Knee push-ups")');
+    assert.ok(await page.isVisible('#libActions'));
+    await page.click('#libToday');
+    assert.ok(!(await page.isVisible('#library')));
+    assert.match(await page.textContent('#moves .ex:nth-child(1) .name'), /Knee push-ups/);
+    assert.match(await page.textContent('#dayBadges'), /today only/);
+    assert.equal(await page.locator('#moves .ex:nth-child(1) .th svg').count(), 1, 'thumbnail figure');
+    const st = await page.evaluate(() => window.__cl.state);
+    assert.equal(st.todaySwaps.date, '2026-10-26'); assert.deepEqual(st.program, {});
+    assert.equal((await page.evaluate(() => window.__cl.plan().items[0].logKey)), '1-0-knee-push-ups');
+    await page.clock.runFor(10 * 3600 * 1000); await page.reload(); // 01:00 the next day
+    assert.match(await page.textContent('#moves .ex:nth-child(1) .name'), /Standard push-ups/);
+    assert.equal(await page.textContent('#dayBadges'), '');
+  });
+  await step('v3: permanent edits (swap, add, move, remove) persist across reload; reset restores the default; a session blocks editing', async () => {
+    await page.goto(BASE + '/app/index.html?nosw'); await page.evaluate(() => localStorage.clear()); await page.reload();
+    await page.click('#editDay');
+    await page.click('#moves .ex:nth-child(2) .editbar button:nth-child(3)');
+    await page.click('#libList .lib:has-text("Sumo squats")'); await page.click('#libPlan');
+    await page.click('#addCore'); await page.click('#libList .lib:has-text("Plank")'); await page.click('#libPlan');
+    await page.click('#moves .ex:nth-child(1) .editbar button:nth-child(2)'); // move down
+    await page.click('#core .ex:nth-child(1) .editbar button:nth-child(4)'); // remove (dialog: accept = today only)
+    await page.reload();
+    const names = await page.evaluate(() => Array.from(document.querySelectorAll('#moves .ex .name, #core .ex .name')).map(e => e.firstChild.textContent));
+    assert.deepEqual(names.slice(0, 2), ['Sumo squats', 'Standard push-ups']);
+    assert.ok(names.includes('Plank'));
+    assert.match(await page.textContent('#dayBadges'), /Customised/); // once a day is customised, further edits follow the plan
+    const st = await page.evaluate(() => window.__cl.state);
+    assert.deepEqual(st.program['0'].m.slice(0, 2), ['sumo-squats', 'standard-push-ups']); assert.deepEqual(st.program['0'].c, ['dead-bugs', 'plank']);
+    assert.equal(st.todaySwaps, null);
+    await page.click('#editDay'); await page.click('#resetDay'); // reset to default (confirm accepted)
+    assert.equal(await page.evaluate(() => Object.keys(window.__cl.state.program).length), 0);
+    await page.click('#editDay');
+    await page.click('#startSession');
+    await page.evaluate(() => document.getElementById('editDay').click()); // session is active (overlay open)
+    assert.equal(await page.evaluate(() => window.__cl.editing), false, 'editing refused while a session is active');
+    assert.match(await page.textContent('#toast'), /End the guided session/);
+  });
+  await step('v3: recorded coach — manifest loads, cues are queued as clip ids with text fallbacks, quotes fit the rest, device mode bypasses clips', async () => {
+    await page.goto(BASE + '/app/index.html?nosw'); await page.evaluate(() => localStorage.clear()); await page.reload();
+    await page.waitForFunction(() => window.__cl.Coach.clips && Object.keys(window.__cl.Coach.clips).length > 500);
+    const T0 = Date.parse('2026-10-26T15:00:00'); await page.clock.install({ time: T0 });
+    await page.click('#startSession'); await page.clock.runFor(300);
+    let last = await page.evaluate(() => window.__cl.Coach.log);
+    assert.deepEqual(last.slice(0, 3), ['day_0', 'warm_start', 'warm_0']); assert.match(last[3], /^q_\d+$/, 'a quote after the warm-up intro');
+    assert.equal(await page.locator('#tArc').count(), 1);
+    await page.click('#timerSkip'); await page.clock.runFor(600);
+    const log = () => page.evaluate(() => window.__cl.Coach.log);
+    let L = await log(); const i = L.indexOf('warm_done'); assert.ok(i > 0); assert.deepEqual(L.slice(i, i + 3), ['warm_done', 'ex_standard-push-ups', 'cue_standard-push-ups']);
+    assert.equal(await page.locator('#wFig svg').count(), 1, 'figure on the work screen');
+    assert.equal(await page.locator('#wNextFig svg').count(), 1, 'thumbnail for the next item');
+    await page.click('#logSet'); await page.clock.runFor(300);
+    last = await page.evaluate(() => window.__cl.Coach.last); assert.deepEqual(last, ['logged', 'rest_45']);
+    await page.clock.runFor(5000);
+    last = await page.evaluate(() => window.__cl.Coach.last); assert.match(last[0], /^q_\d+$/, 'quote during rest: ' + last);
+    const fits = await page.evaluate(() => { const c = window.__cl.Coach; return c.dur(c.last[0]) <= 45 - 4 - 13; }); assert.ok(fits, 'quote fits before the Next call');
+    await page.clock.runFor(31_000);
+    last = await page.evaluate(() => window.__cl.Coach.last); assert.deepEqual(last, ['next_standard-push-ups', 'set_2']);
+    assert.equal(await page.locator('#rFig svg').count(), 1, 'figure on the rest screen');
+    const dev = await page.evaluate(() => { const c = window.__cl.Coach; window.__cl.state.settings.coachVoice = 'device'; const u = c.useClips(); window.__cl.state.settings.coachVoice = 'recorded'; return [u, c.useClips(), c.text('go'), c.dur('rest_45') > 0]; });
+    assert.deepEqual(dev, [false, true, 'Go!', true]);
+    await page.click('#endSession');
+  });
+  await step('v3: service worker precaches the shell and the essential clips (not the long ones) and serves audio cache-first', async () => {
+    await page.goto(BASE + '/app/index.html');
+    const info = await page.evaluate(async () => {
+      const reg = await navigator.serviceWorker.ready;
+      for (let i = 0; i < 60; i++) { const a = await caches.open('calisthenics-lab-audio-v1'); if ((await a.keys()).length >= 294) break; await new Promise(r => setTimeout(r, 500)); }
+      const keys = await caches.keys(); const a = await caches.open('calisthenics-lab-audio-v1'); const ak = (await a.keys()).map(r => r.url);
+      const c = await caches.open('calisthenics-lab-v3.0.0'); const ck = (await c.keys()).map(r => r.url);
+      return { keys, audio: ak.length, essential: ak.filter(u => /\/(ex|next|cue|rest|set)_/.test(u)).length, how: ak.filter(u => /\/how_/.test(u)).length, shell: ck.some(u => /figures\.js/.test(u)) && ck.some(u => /manifest\.json/.test(u)), scope: reg.scope };
+    });
+    assert.ok(info.keys.includes('calisthenics-lab-v3.0.0') && info.keys.includes('calisthenics-lab-audio-v1'), JSON.stringify(info));
+    assert.ok(info.shell, 'shell assets cached');
+    assert.ok(info.essential >= 290, 'essential clips cached: ' + info.essential);
+  });
+
   await step('v2: no console errors during the run', async () => { /* collected via pageerror listener above; failures would print */ });
 
   await page.screenshot({ path: path.join(SHOTS, '06-settings.png') }).catch(() => {});
+  await page.goto(BASE + '/app/index.html?nosw').catch(() => {}); await page.evaluate(async () => { for (const k of await caches.keys()) await caches.delete(k); const r = await navigator.serviceWorker.getRegistrations(); for (const x of r) await x.unregister(); }).catch(() => {});
   await browser.close();
   const fails = results.filter(r => r[0] === 'FAIL');
   fs.writeFileSync(path.join(__dirname, 'browser-results.txt'), results.map(r => r.join(' ')).join('\n') + '\n');

@@ -13,4 +13,8 @@ PASS v2.1: warm-up → sets → burnout timer → cool-down → done, with how-t
 PASS v2.1: settings sheet lists voice controls and the plan shows burnout labels
 PASS v2: import a v1 backup file (merge) keeps existing data and upgrades keys
 PASS v2: crafted backup cannot inject markup
+PASS v3: swap an exercise for today only — plan updates, badge shows, logs key by the new id, and it expires tomorrow
+PASS v3: permanent edits (swap, add, move, remove) persist across reload; reset restores the default; a session blocks editing
+PASS v3: recorded coach — manifest loads, cues are queued as clip ids with text fallbacks, quotes fit the rest, device mode bypasses clips
+PASS v3: service worker precaches the shell and the essential clips (not the long ones) and serves audio cache-first
 PASS v2: no console errors during the run

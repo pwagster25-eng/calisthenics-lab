@@ -1,4 +1,4 @@
-/* Calisthenics Lab v2.0 — core logic (no DOM).
+/* Calisthenics Lab v3.0 — core logic (no DOM).
    Loaded by index.html in the browser and by tests/unit.test.js in Node.
    Everything here is pure: program data, week scaling, log-derived queue,
    v1 → v2 migration, import validation, time estimation, timer math. */
@@ -8,7 +8,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const SCHEMA_VERSION = 2;
+  const SCHEMA_VERSION = 3;  // v3: adds program overrides + todaySwaps (additive; v2 files load unchanged)
   const STORAGE_V1 = 'calisthenics-v1';
   const STORAGE_V2 = 'calisthenics-v2';
   const STORAGE_PREIMPORT = 'calisthenics-v2-preimport';
@@ -68,8 +68,83 @@
     'hip-mobility':        { name: 'Hip mobility', kind: 'mobility', group: 'mobility', sets: 1, lo: 3, hi: 3, cue: '90/90 switches, hip circles, deep squat hold.', how: "Three minutes of easy hip movement: sit on the floor with both knees bent to 90 degrees and switch sides (90/90 switches), stand and make slow hip circles, then sink into a deep squat and hold, rocking gently. Nothing should hurt." },
     'brisk-walking':       { name: 'Brisk walking', kind: 'cardio', group: 'cardio', sets: 1, lo: 12, hi: 15, cue: 'Conversational pace. Nose breathing if you can.', how: "Walk fast enough that you can talk in full sentences but couldn't sing. Arms swinging, tall posture, nose breathing if you can." },
     'walk-or-shadowbox':   { name: 'Brisk walking or shadowboxing', kind: 'cardio', group: 'cardio', sets: 1, lo: 15, hi: 15, cue: 'Easy, steady effort — about 5/10.', how: "Either a brisk walk, or shadowboxing: stand in a boxing stance and throw light, relaxed punches at the air while moving your feet, for fifteen minutes at an easy effort of about five out of ten." },
-    'comfortable-walking': { name: 'Comfortable walking', kind: 'cardio', group: 'cardio', sets: 1, lo: 15, hi: 20, cue: 'Relaxed. This is recovery.', how: "An easy, relaxed walk at whatever pace feels pleasant. This is recovery, not training." }
+    'comfortable-walking': { name: 'Comfortable walking', kind: 'cardio', group: 'cardio', sets: 1, lo: 15, hi: 20, cue: 'Relaxed. This is recovery.', how: "An easy, relaxed walk at whatever pace feels pleasant. This is recovery, not training." },
+
+    /* ---- v3 library additions (all bodyweight; a wall, couch, step or doorframe at most) ---- */
+    // push
+    'wall-push-ups':        { name: 'Wall push-ups', kind: 'reps', group: 'push', level: 1, sets: 2, lo: 12, hi: 15, cue: 'Hands on the wall at chest height, body straight, lean in and press away.', harder: 'Walk the feet further from the wall.', how: "Stand an arm's length from a wall, hands flat on it at chest height and shoulder-width apart. Keep the body in one straight line and bend the elbows to bring the chest toward the wall, then press back. Feet further back makes it harder. Mistake: bending at the hips — move as one plank." },
+    'incline-push-ups':     { name: 'Incline push-ups', kind: 'reps', group: 'push', level: 1, sets: 2, lo: 10, hi: 12, cue: 'Hands on a couch arm or counter. The higher the hands, the easier.', harder: 'Move to a lower surface.', how: "Hands on the edge of a couch, bed frame or kitchen counter, feet back so the body is one straight line. Lower the chest to the edge and press up. Progress from counter, to couch, to the floor. Mistake: hips sagging — brace the stomach." },
+    'knee-push-ups':        { name: 'Knee push-ups', kind: 'reps', group: 'push', level: 1, sets: 2, lo: 10, hi: 12, cue: 'Knees down, hips forward in line with the shoulders — not sitting back.', harder: 'Do the lowering phase from the toes, then drop to the knees to press up.', how: "Kneel, hands under the shoulders, ankles crossed, and bring the hips forward so there is one straight line from the knees to the head. Lower the chest to the floor and press up. Mistake: hips piked back toward the heels — that takes the work out of the chest." },
+    'archer-push-ups':      { name: 'Archer push-ups', kind: 'reps', group: 'push', level: 3, sets: 2, lo: 4, hi: 6, perSide: true, cue: 'Very wide hands; lower toward one hand while the other arm straightens.', harder: 'Narrow the bent-arm side until it is nearly a one-arm push-up.', how: "Take a very wide hand position. Lower the chest toward the right hand, bending that arm, while the left arm stays nearly straight and slides out to the side. Press back to centre, then lower to the other side. Mistake: twisting the hips — keep them square and move side to side, not in a circle." },
+    'hindu-push-ups':       { name: 'Hindu push-ups', kind: 'reps', group: 'push', level: 3, sets: 2, lo: 6, hi: 8, cue: 'Dive from a downward dog, sweep the chest low, finish with chest up. Push back.', how: "Start in a downward-dog position with the hips high. Dive forward, sweeping the chest just above the floor in a scooping arc, and finish with the arms straight and the chest up. Push the hips back up to the start. Mistake: rushing the dive — move slowly and keep the elbows close to the body." },
+    'plank-up-downs':       { name: 'Plank up-downs', kind: 'reps', group: 'push', level: 2, sets: 2, lo: 6, hi: 8, perSide: true, cue: 'Forearm plank to push-up position one hand at a time, then back down. Alternate the lead arm.', how: "Start in a forearm plank. Place the right hand where the right elbow was and press up, then the left, so you are in a push-up position. Lower back to the forearms one arm at a time. Alternate which arm leads. Mistake: hips swinging side to side — widen the feet and brace." },
+    'pseudo-planche-lean':  { name: 'Pseudo-planche lean', kind: 'hold', group: 'push', level: 3, sets: 2, lo: 15, hi: 20, cue: 'Push-up position, fingers turned out; lean the shoulders well past the hands and hold.', harder: 'Lean further, or lift one foot.', how: "In a push-up position with the fingers turned out slightly, lean forward so the shoulders travel well past the hands while the arms stay straight and the body stays rigid. Hold. Mistake: the hips piking or sagging — keep the plank line." },
+    'scapular-push-ups':    { name: 'Scapular push-ups', kind: 'reps', group: 'pull', level: 1, sets: 2, lo: 10, hi: 12, cue: 'Arms locked straight; only the shoulder blades move — squeeze together, then push the floor away.', how: "Hold a push-up position with the arms locked straight. Without bending the elbows, let the chest sink as the shoulder blades squeeze together, then push the floor away so the upper back rounds slightly. Small movement, full control. Mistake: bending the elbows — this is not a push-up." },
+    // legs
+    'sumo-squats':          { name: 'Sumo squats', kind: 'reps', group: 'legs', level: 1, sets: 2, lo: 15, hi: 15, cue: 'Wide stance, toes out, knees track over the toes.', harder: 'Pause 2 seconds at the bottom.', how: "Stand with the feet wider than the shoulders and toes turned out about 30 degrees. Sit straight down between the heels with the chest up, then drive back up. Mistake: knees collapsing inward — push them out over the toes the whole way." },
+    'jump-squats':          { name: 'Jump squats', kind: 'reps', group: 'legs', level: 3, sets: 2, lo: 8, hi: 10, cue: 'Land softly, knees bent, then sink straight into the next rep.', how: "Squat to about parallel, then jump straight up, swinging the arms. Land quietly on the balls of the feet, bend the knees to absorb, and go straight into the next squat. Mistake: landing with straight legs — soft, quiet landings every time." },
+    'wall-sit':             { name: 'Wall sit', kind: 'hold', group: 'legs', level: 1, sets: 2, lo: 30, hi: 45, cue: 'Back flat on the wall, thighs parallel, weight in the heels.', harder: 'Lift one foot an inch for a few seconds at a time.', how: "Lean your back against a wall and slide down until the thighs are parallel to the floor and the knees are over the ankles. Hold, breathing normally, with the hands off the thighs. Mistake: knees forward of the toes — walk the feet out." },
+    'forward-lunges':       { name: 'Forward lunges', kind: 'reps', group: 'legs', level: 2, sets: 2, lo: 8, hi: 8, perSide: true, cue: 'Step forward, lower straight down, push back to standing.', how: "Stand tall and take a long step forward. Lower until both knees are at about 90 degrees with the back knee just above the floor, then push off the front foot to return to standing. Mistake: the front knee drifting inward — point it at the second toe." },
+    'walking-lunges':       { name: 'Walking lunges', kind: 'reps', group: 'legs', level: 2, sets: 2, lo: 8, hi: 8, perSide: true, cue: 'Long steps, torso upright, step the back leg through into the next lunge.', how: "Step forward into a lunge, then push through the front foot to bring the back leg through into the next lunge, travelling across the room. Keep the torso upright. Mistake: short, choppy steps — long steps keep the front shin vertical." },
+    'curtsy-lunges':        { name: 'Curtsy lunges', kind: 'reps', group: 'legs', level: 2, sets: 2, lo: 8, hi: 8, perSide: true, cue: 'Step one foot back and across behind the other, like a curtsy; front knee over the toes.', how: "Stand tall, step the right foot back and across behind the left leg, and bend both knees to lower. Push through the left heel to stand, then switch sides. Mistake: the front knee caving in — keep it over the toes." },
+    'bulgarian-split-squats': { name: 'Bulgarian split squats', kind: 'reps', group: 'legs', level: 3, sets: 2, lo: 6, hi: 8, perSide: true, cue: 'Rear foot on the couch, front shin vertical, lower straight down.', harder: 'Pause 2 seconds at the bottom.', how: "Stand a long step in front of a couch or bed and rest the top of the rear foot on it. Lower straight down until the front thigh is parallel to the floor, then drive up through the front heel. Mistake: standing too close — if the front knee shoots forward, hop the foot further out." },
+    'cossack-squats':       { name: 'Cossack squats', kind: 'reps', group: 'legs', level: 3, sets: 2, lo: 5, hi: 6, perSide: true, cue: 'Very wide stance; sit all the way to one side, other leg straight, toes up.', how: "Take a very wide stance. Shift the weight to the right and sit down over the right foot as deep as you can while the left leg stays straight with the toes pointing up. Push back to centre and switch sides. Mistake: the heel lifting on the working side — only go as low as the heel stays down." },
+    'assisted-pistol-squats': { name: 'Assisted pistol squats', kind: 'reps', group: 'legs', level: 3, sets: 2, lo: 4, hi: 6, perSide: true, cue: 'Hold a doorframe lightly; lower on one leg with the free leg out in front.', harder: 'Use one hand only.', how: "Hold a doorframe or sturdy post lightly with both hands. Lift one foot off the floor and squat as low as you can on the other leg, using the hands only as much as you need, then stand back up. Mistake: pulling yourself up with the arms — the leg does the work, the hands just balance." },
+    'calf-raises':          { name: 'Calf raises', kind: 'reps', group: 'legs', level: 1, sets: 2, lo: 15, hi: 20, cue: 'Rise onto the balls of the feet, pause at the top, lower slowly.', harder: 'Do them off the edge of a step.', how: "Stand tall with the fingertips on a wall for balance. Rise as high as you can onto the balls of the feet, pause a second at the top, then lower over two seconds. Off the edge of a step gives a bigger stretch. Mistake: bouncing — control the way down." },
+    'single-leg-calf-raises': { name: 'Single-leg calf raises', kind: 'reps', group: 'legs', level: 2, sets: 2, lo: 10, hi: 12, perSide: true, cue: 'One foot, fingertips on the wall, full height, slow down.', how: "Stand on one foot with the fingertips on a wall. Rise as high as possible onto the ball of the foot, pause, and lower slowly. All reps on one side, then switch. Mistake: rolling onto the outside of the foot — push through the big toe." },
+    'skater-hops':          { name: 'Skater hops', kind: 'reps', group: 'legs', level: 2, sets: 2, lo: 8, hi: 8, perSide: true, cue: 'Bound sideways from one foot to the other; land soft and hold a beat.', how: "Push off the right foot to bound to the left, landing softly on the left foot with the knee bent and the right leg sweeping behind. Hold the balance for a beat, then bound back. Mistake: standing tall between hops — stay low like a speed skater." },
+    // hinge
+    'single-leg-glute-bridges': { name: 'Single-leg glute bridges', kind: 'reps', group: 'hinge', level: 3, sets: 2, lo: 8, hi: 10, perSide: true, cue: 'One foot flat, the other leg straight; drive the hips up without tilting.', how: "Lie on your back with one foot flat and the other leg held straight. Drive through the planted heel to lift the hips until the body is a straight line from shoulder to knee, squeeze, then lower slowly. Mistake: the hips tilting toward the lifted leg — slower, and brace." },
+    'supermans':            { name: 'Supermans', kind: 'reps', group: 'hinge', level: 1, sets: 2, lo: 10, hi: 12, cue: 'Face down; lift chest and thighs together, hold a second, lower.', harder: 'Hold 3 seconds at the top.', how: "Lie face down with the arms overhead. Lift the arms, chest and both thighs a few inches off the floor at the same time, hold for a second, then lower slowly. Keep the eyes on the floor. Mistake: cranking the neck back — long neck, chin tucked." },
+    'good-mornings':        { name: 'Good mornings', kind: 'reps', group: 'hinge', level: 1, sets: 2, lo: 12, hi: 12, cue: 'Hands behind the head; push the hips back with a flat back until the chest is near parallel.', how: "Stand with the feet hip-width, hands behind the head and knees soft. Push the hips straight back, keeping the back flat, until the chest is close to parallel with the floor, then squeeze the glutes to stand. Mistake: rounding the back or bending the knees a lot — this is a hinge, not a squat." },
+    'frog-pumps':           { name: 'Frog pumps', kind: 'reps', group: 'hinge', level: 1, sets: 2, lo: 15, hi: 20, cue: 'Soles together, knees out; pump the hips up and squeeze hard.', how: "Lie on your back, put the soles of the feet together and let the knees fall out. Tuck the chin and drive the hips up, squeezing the glutes hard at the top, then lower. Quick rhythm, strong squeeze. Mistake: arching the lower back — ribs down." },
+    'hip-thrusts':          { name: 'Hip thrusts', kind: 'reps', group: 'hinge', level: 2, sets: 2, lo: 12, hi: 15, cue: 'Shoulder blades on the couch edge, feet flat; drive the hips up to a flat table top.', harder: 'Single leg, or a 2-second squeeze at the top.', how: "Sit on the floor with the upper back against the edge of a couch, feet flat and knees bent. Drive through the heels to lift the hips until the thighs and torso make one flat line, chin tucked, squeeze, and lower. Mistake: over-arching at the top — stop when the glutes are fully squeezed." },
+    'reverse-plank':        { name: 'Reverse plank', kind: 'hold', group: 'hinge', level: 2, sets: 2, lo: 20, hi: 30, cue: 'Sit, hands behind you, lift the hips so the body is one straight line face-up.', how: "Sit with the legs straight and the hands on the floor behind you, fingers pointing toward the feet. Press the hips up until the body is one straight line from heels to shoulders, chest open, and hold. Mistake: the hips sagging — squeeze the glutes." },
+    // pull (no equipment)
+    'prone-cobra-hold':     { name: 'Prone cobra hold', kind: 'hold', group: 'pull', level: 1, sets: 2, lo: 20, hi: 30, cue: 'Face down; chest slightly up, arms back with thumbs to the ceiling, squeeze the shoulder blades.', how: "Lie face down with the arms by the sides. Lift the chest slightly, reach the arms back and up with the thumbs pointing to the ceiling, squeeze the shoulder blades down and together, and hold. Eyes on the floor. Mistake: lifting high with the lower back — this is a shoulder-blade squeeze, not a back bend." },
+    'prone-lat-pulls':      { name: 'Prone lat pulls', kind: 'reps', group: 'pull', level: 2, sets: 2, lo: 10, hi: 12, cue: 'Face down, arms overhead; pull the elbows down to the ribs as if pulling a bar, then reach back out.', how: "Lie face down with the arms stretched overhead and the chest slightly lifted. Pull the elbows down and back toward the ribs as if pulling a bar to the chest, squeezing the shoulder blades, then reach the arms back overhead. Keep the chest just off the floor for the whole set. Mistake: dropping the chest between reps." },
+    'wall-slides':          { name: 'Wall slides', kind: 'reps', group: 'pull', level: 1, sets: 2, lo: 10, hi: 10, cue: 'Back and arms on the wall in a goalpost; slide up and down keeping contact.', how: "Stand with the back, head and arms against a wall in a goalpost position. Slide the arms up overhead and back down while keeping the wrists and elbows touching the wall as much as you can. Mistake: the ribs flaring forward — keep the lower back close to the wall." },
+    // core
+    'plank':                { name: 'Plank', kind: 'hold', group: 'core', level: 1, sets: 2, lo: 30, hi: 45, cue: 'Elbows under shoulders, one straight line, squeeze the glutes, breathe.', harder: 'Lift one foot an inch, alternating.', how: "Forearms on the floor, elbows under the shoulders, feet together. Lift into one straight line from head to heels, squeeze the glutes and brace the stomach. Breathe. Mistake: hips sagging or piking — if the line breaks, stop the set." },
+    'plank-shoulder-taps':  { name: 'Plank shoulder taps', kind: 'reps', group: 'core', level: 2, sets: 2, lo: 10, hi: 10, perSide: true, cue: 'Push-up position, feet wide; tap the opposite shoulder without the hips rocking.', how: "In a push-up position with the feet wide, lift one hand and tap the opposite shoulder, replace it, then the other hand. Mistake: hips rocking side to side — slower, wider feet." },
+    'mountain-climbers':    { name: 'Mountain climbers', kind: 'reps', group: 'core', level: 2, sets: 2, lo: 12, hi: 12, perSide: true, cue: 'Shoulders over the hands, hips low, drive the knees in and switch.', how: "In a push-up position, drive one knee toward the chest, then switch legs quickly, keeping the hips low and the shoulders over the hands. Mistake: hips bouncing up — keep them level." },
+    'bicycle-crunches':     { name: 'Bicycle crunches', kind: 'reps', group: 'core', level: 2, sets: 2, lo: 12, hi: 12, perSide: true, cue: 'Elbow to the opposite knee, slow pedalling, hands only support the head.', how: "Lie on your back, hands lightly behind the head, knees up. Bring the right elbow toward the left knee while the right leg extends, then switch sides in a slow pedalling motion. Mistake: pulling on the neck — the hands only support the head." },
+    'flutter-kicks':        { name: 'Flutter kicks', kind: 'hold', group: 'core', level: 2, sets: 2, lo: 20, hi: 30, cue: 'Hands under the hips, legs just off the floor, small quick scissors, lower back pressed down.', how: "Lie on your back, hands under the hips, legs straight and lifted a few inches. Kick the legs up and down in small, quick scissors while the lower back stays pressed into the floor. Mistake: the lower back arching — raise the legs higher." },
+    'straight-leg-raises':  { name: 'Straight-leg raises', kind: 'reps', group: 'core', level: 3, sets: 2, lo: 8, hi: 10, cue: 'Legs straight, lift to vertical, lower slowly, stop before the back arches.', how: "Lie on your back, hands under the hips, legs straight. Lift the legs to vertical, then lower them slowly toward the floor, stopping before the lower back lifts. Mistake: using momentum — three seconds down." },
+    'v-ups':                { name: 'V-ups', kind: 'reps', group: 'core', level: 3, sets: 2, lo: 8, hi: 10, cue: 'Arms overhead; lift legs and torso together, reach for the feet, lower with control.', how: "Lie flat with the arms overhead. In one movement, lift the straight legs and the upper body so the hands reach toward the feet, making a V, then lower with control. Mistake: bending the knees to cheat — do a tuck-up instead if needed." },
+    'sit-ups':              { name: 'Sit-ups', kind: 'reps', group: 'core', level: 1, sets: 2, lo: 12, hi: 15, cue: 'Knees bent, arms crossed on the chest, curl all the way up, lower slowly.', how: "Lie on your back, knees bent, feet flat, arms crossed on the chest. Curl all the way up to sitting and lower slowly. Hook the feet under the couch if needed. Mistake: yanking the head forward — lead with the chest." },
+    'crunches':             { name: 'Crunches', kind: 'reps', group: 'core', level: 1, sets: 2, lo: 15, hi: 15, cue: 'Short range: shoulder blades off the floor, pause, lower.', how: "Lie on your back, knees bent, fingertips at the temples. Curl the shoulder blades off the floor, pause, and lower. Short range, slow. Mistake: pulling the head — lead with the chest." },
+    'russian-twists':       { name: 'Russian twists', kind: 'reps', group: 'core', level: 2, sets: 2, lo: 12, hi: 12, perSide: true, cue: 'Lean back to 45°, rotate the shoulders to tap beside each hip.', harder: 'Lift the heels off the floor.', how: "Sit with the knees bent and heels on the floor, lean back to about 45 degrees, hands together. Rotate the torso to tap the hands beside one hip, then the other. Mistake: only the arms moving — turn the shoulders." },
+    'hollow-rocks':         { name: 'Hollow rocks', kind: 'reps', group: 'core', level: 3, sets: 2, lo: 10, hi: 12, cue: 'Hold the hollow shape and rock like a rocking chair without changing it.', how: "From a hollow hold — lower back pressed down, arms and legs long — rock gently back and forth like a rocking chair without changing the shape. Mistake: the lower back arching when you rock forward — tighten the shape or bend the knees." },
+    'side-plank-dips':      { name: 'Side plank dips', kind: 'reps', group: 'core', level: 2, sets: 2, lo: 10, hi: 10, perSide: true, cue: 'From a side plank, lower the hip almost to the floor and lift it back above the line.', how: "In a side plank, lower the hip toward the floor until it almost touches, then lift it back up above the start line. Mistake: rolling forward — keep the chest facing the wall in front of you." },
+    'windshield-wipers':    { name: 'Windshield wipers', kind: 'reps', group: 'core', level: 3, sets: 2, lo: 8, hi: 8, perSide: true, cue: 'Arms out, knees bent over the hips; lower the knees side to side with both shoulders down.', how: "Lie on your back, arms out to the sides, knees bent and lifted over the hips. Lower the knees to one side toward the floor, keeping both shoulders down, then sweep them to the other side. Mistake: a shoulder lifting — shorten the range." },
+    'heel-touches':         { name: 'Heel touches', kind: 'reps', group: 'core', level: 1, sets: 2, lo: 12, hi: 12, perSide: true, cue: 'Shoulders slightly lifted; reach side to side for each heel.', how: "Lie on your back, knees bent, feet flat, shoulders slightly lifted. Reach the right hand to the right heel, then the left to the left, bending sideways. Mistake: the shoulders dropping to the floor between reps." },
+    'bear-crawl':           { name: 'Bear crawl', kind: 'reps', group: 'core', level: 2, sets: 2, lo: 10, hi: 10, perSide: true, cue: 'Hands and feet, knees an inch off the floor, opposite hand and foot step together.', how: "On hands and feet with the knees an inch off the floor, crawl forward by moving the right hand and left foot together, then the left hand and right foot. Keep the back flat enough to balance a cup of water on it. Mistake: the hips swaying up — small steps, knees low." },
+    // cardio
+    'jumping-jacks':        { name: 'Jumping jacks', kind: 'hold', group: 'cardio', level: 1, sets: 2, lo: 30, hi: 45, cue: 'Soft knees, steady rhythm, stay on the balls of the feet.', how: "Jump the feet wide while the arms swing overhead, then jump them back together as the arms come down. Soft knees, steady rhythm. Mistake: landing flat-footed — stay on the balls of the feet." },
+    'high-knees':           { name: 'High knees', kind: 'hold', group: 'cardio', level: 2, sets: 2, lo: 20, hi: 30, cue: 'Run on the spot, knees to hip height, pump the arms, stay tall.', how: "Run on the spot, driving the knees up to hip height and pumping the arms. Land lightly on the balls of the feet. Mistake: leaning back — stay tall." },
+    'burpees':              { name: 'Burpees', kind: 'reps', group: 'cardio', level: 3, sets: 2, lo: 6, hi: 8, cue: 'Squat, hands down, jump back, jump in, stand or jump up. Brace before the feet go back.', harder: 'Add a push-up at the bottom.', how: "From standing, squat down and put the hands on the floor, jump the feet back to a push-up position, jump them back in, and stand or jump up. Mistake: letting the back sag when the feet jump back — brace first." },
+    'squat-thrusts':        { name: 'Squat thrusts', kind: 'reps', group: 'cardio', level: 2, sets: 2, lo: 8, hi: 10, cue: 'Hands down, feet back to a plank, feet in, stand. No jump.', how: "Squat down, put the hands on the floor, step or hop the feet back to a plank, bring them back in and stand up tall. A burpee without the jump. Mistake: the hips sagging in the plank — brace." },
+    'shadowboxing':         { name: 'Shadowboxing', kind: 'cardio', group: 'cardio', level: 1, sets: 1, lo: 10, hi: 12, cue: 'Boxing stance, light relaxed punches, keep the feet moving. Easy effort.', how: "Stand in a boxing stance and throw light, relaxed punches at the air — jabs, crosses, hooks — while moving the feet, for the time shown at an easy effort of about five out of ten." },
+    'stair-climbing':       { name: 'Stair climbing', kind: 'cardio', group: 'cardio', level: 2, sets: 1, lo: 10, hi: 12, cue: 'Steady pace up and down a flight of stairs, hand near the rail.', how: "Walk up and down a flight of stairs at a steady pace with a hand near the rail. Whole foot on each step going up, controlled coming down." },
+    'march-in-place':       { name: 'Marching in place', kind: 'cardio', group: 'cardio', level: 1, sets: 1, lo: 8, hi: 10, cue: 'Tall posture, knees up, arms swinging. Easy and steady.', how: "March on the spot, lifting the knees to about hip height and swinging the arms, at an easy steady pace for the time shown. A good swap for walking when you cannot get outside." },
+    // mobility
+    'worlds-greatest-stretch': { name: "World's greatest stretch", kind: 'reps', group: 'mobility', level: 1, sets: 1, lo: 5, hi: 5, perSide: true, cue: 'Long lunge, hands inside the foot; elbow to instep, then rotate and reach up.', how: "Step the right foot forward into a long lunge and put both hands on the floor inside the foot. Drop the right elbow toward the instep, then rotate and reach the right hand to the ceiling, following it with the eyes. Return and repeat, then switch sides. Move slowly." },
+    'thoracic-rotations':   { name: 'Thoracic rotations', kind: 'reps', group: 'mobility', level: 1, sets: 1, lo: 8, hi: 8, perSide: true, cue: 'On all fours, hand behind the head; elbow to the opposite wrist, then open to the ceiling.', how: "On hands and knees, put the right hand behind the head. Rotate the right elbow down toward the left wrist, then open it up toward the ceiling as far as the upper back allows, following with the eyes. The hips stay still." },
+    'down-dog-to-cobra':    { name: 'Down dog to cobra', kind: 'reps', group: 'mobility', level: 1, sets: 1, lo: 6, hi: 6, cue: 'Hips up and back, heels down; then lower through to a gentle cobra. Flow with the breath.', how: "From a push-up position, push the hips up and back into an upside-down V, pressing the heels toward the floor. Then lower the hips through, straighten the arms and lift the chest into a gentle cobra. Flow slowly between the two with the breath." },
+    'deep-squat-hold':      { name: 'Deep squat hold', kind: 'hold', group: 'mobility', level: 1, sets: 1, lo: 45, hi: 60, cue: 'Heels down, elbows pressing the knees out, chest up. Rock gently and breathe.', how: "Sink into the deepest squat you can with the heels down, elbows gently pressing the knees out, chest up. Hold and breathe, rocking gently. Hold a doorframe if the heels lift." },
+    'hip-flexor-stretch':   { name: 'Hip flexor stretch', kind: 'hold', group: 'mobility', level: 1, sets: 1, lo: 30, hi: 30, perSide: true, cue: 'Half-kneeling; tuck the tailbone, squeeze the back glute, shift gently forward.', how: "Kneel on one knee with the other foot forward. Tuck the tailbone, squeeze the glute of the kneeling side, and shift gently forward until you feel a stretch in the front of the hip. Chest up, no arching." },
+    'pigeon-stretch':       { name: 'Pigeon stretch', kind: 'hold', group: 'mobility', level: 1, sets: 1, lo: 30, hi: 30, perSide: true, cue: 'Front shin across, back leg long; square the hips and breathe into it.', how: "From hands and knees, bring the right knee forward behind the right wrist with the shin angled across, and slide the left leg straight back. Square the hips, lower the chest as far as is comfortable, and breathe. Switch sides." },
+    'arm-circles':          { name: 'Arm circles', kind: 'reps', group: 'mobility', level: 1, sets: 1, lo: 10, hi: 10, perSide: true, cue: 'Small to large circles, both directions, shoulders down.', how: "Arms out to the sides. Make small circles that grow larger over ten reps, then reverse direction. Keep the shoulders down away from the ears." },
+    'child-pose-reach':     { name: "Child's pose reach", kind: 'hold', group: 'mobility', level: 1, sets: 1, lo: 30, hi: 30, cue: 'Hips to heels, arms long, breathe into the back. Walk the hands to each side for the lats.', how: "Kneel, sit the hips back toward the heels and reach the arms long on the floor in front of you. Breathe into the back for the time shown; walk the hands over to each side to stretch the lats." }
   };
+  // Library metadata: difficulty level (1 easier · 2 standard · 3 harder) and equipment flag.
+  const LEVELS = { 'wall-push-ups': 1, 'decline-push-ups': 3, 'pike-push-ups': 3, 'diamond-push-ups': 3, 'staggered-push-ups': 3, 'tempo-push-ups': 2, 'single-leg-rdl': 3, 'glute-bridge-march': 2, 'glute-bridges': 1, 'hollow-hold': 3, 'side-plank': 2, 'bird-dogs': 1, 'dead-bugs': 1, 'reverse-crunches': 2, 'bent-knee-leg-raises': 2, 'standing-knee-raises': 1, 'cobra-press-ups': 1, 'cat-cow': 1, 'hip-mobility': 1, 'reverse-snow-angels': 1, 'prone-w-raises': 1, 'prone-ytw-raises': 2, 'prone-swimmers': 2, 'bodyweight-squats': 1, 'pause-squats': 2, 'reverse-lunges': 2, 'split-squats': 2, 'lateral-lunges': 2, 'rows': 2 };
+  Object.keys(EX).forEach(id => { if (EX[id].level == null) EX[id].level = LEVELS[id] || 2; });
+  EX['rows'].equipment = true;
+  const GROUPS = { push: 'Push', legs: 'Legs', hinge: 'Hinge & glutes', pull: 'Upper back', core: 'Core', cardio: 'Conditioning', mobility: 'Mobility' };
+  const GROUP_ORDER = ['push', 'legs', 'hinge', 'pull', 'core', 'cardio', 'mobility'];
+  const STRENGTH_GROUPS = ['push', 'legs', 'hinge', 'pull'];
 
   /* Day plans. Changes from v1.2 are marked // v2. */
   const PROGRAM = [
@@ -122,8 +197,9 @@
     cooldownSeconds: 120,
     cueLevel: 'full',      // 'off' | 'light' | 'full' — spoken coaching during sets
     quotesOn: true,        // motivational lines during longer rests
-    voiceURI: '',          // '' = browser default
-    voiceRate: 1
+    voiceURI: '',          // device voice for fallback / 'device' mode ('' = automatic)
+    voiceRate: 1,
+    coachVoice: 'recorded' // 'recorded' (bundled clips) | 'device' (speechSynthesis)
   };
 
   /* ------------------------------------------------------------------ */
@@ -133,7 +209,7 @@
     const ex = EX[exId];
     const st = Object.assign({}, DEFAULT_SETTINGS, settings || {});
     const tier = PHASES[week - 1].tier;
-    const isStrength = ['push', 'legs', 'hinge', 'pull'].includes(ex.group);
+    const isStrength = STRENGTH_GROUPS.includes(ex.group);
     let sets = ex.sets + (isStrength && ex.sets >= 2 ? st.extraSets : 0), target = ex.lo, hint = '';
     if (tier === 'build' || tier === 'progress' || tier === 'consolidate') target = ex.hi;
     if (tier === 'progress' && isStrength && posInMain === 0 && ex.harder) hint = ex.harder;
@@ -147,16 +223,96 @@
     return { sets, target, unit, label, hint, perSide: !!ex.perSide, kind: ex.kind, burnout, burnoutSeconds: st.burnoutSeconds };
   }
 
-  function dayPlan(dayIdx, week, settings) {
+  /* dayDef (optional): { m: [ids], c: [ids] } — a customised day from resolveDay(). Defaults to PROGRAM[dayIdx]. */
+  function dayPlan(dayIdx, week, settings, dayDef) {
     const p = PROGRAM[dayIdx];
-    const mk = (section) => p[section].map((id, i) => {
+    const def = dayDef && Array.isArray(dayDef.m) ? dayDef : p;
+    const mk = (section) => (def[section] || []).filter(id => EX[id]).map((id, i) => {
       const pr = prescription(id, week, dayIdx, section === 'm' ? i : -1, settings);
-      return Object.assign({ id, section, name: EX[id].name, cue: EX[id].cue, how: EX[id].how || '', group: EX[id].group, lo: EX[id].lo, hi: EX[id].hi, logKey: `${week}-${dayIdx}-${id}` }, pr);
+      return Object.assign({ id, section, name: EX[id].name, cue: EX[id].cue, how: EX[id].how || '', group: EX[id].group, level: EX[id].level, lo: EX[id].lo, hi: EX[id].hi, logKey: `${week}-${dayIdx}-${id}` }, pr);
     });
     const light = p.k !== 'Strength';
     const st = Object.assign({}, DEFAULT_SETTINGS, settings || {});
-    return { dayIdx, week, d: p.d, n: p.n, k: p.k, f: p.f, light, items: [...mk('m'), ...mk('c')], mainCount: p.m.length,
+    const items = [...mk('m'), ...mk('c')];
+    return { dayIdx, week, d: p.d, n: p.n, k: p.k, f: p.f, light, items, mainCount: items.filter(i => i.section === 'm').length,
+      custom: !!(dayDef && dayDef.custom), temporary: !!(dayDef && dayDef.temporary),
       warmupSeconds: light ? Math.round(st.warmupSeconds / 2) : st.warmupSeconds, cooldownSeconds: light ? Math.round(st.cooldownSeconds / 2) : st.cooldownSeconds };
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Editable programme (v3)                                             */
+  /* state.program   = { [dayIdx]: { m: [...], c: [...] } }  permanent    */
+  /* state.todaySwaps = { date, dayIdx, m: [...], c: [...] }  one day only */
+  /* ------------------------------------------------------------------ */
+  const MAX_MAIN = 8, MAX_CORE = 4;
+  function localDate(d) { d = d || new Date(); const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; }
+  function defaultDay(dayIdx) { const p = PROGRAM[dayIdx]; return { m: p.m.slice(), c: p.c.slice() }; }
+  function sameDef(a, b) { return a.m.join(',') === b.m.join(',') && a.c.join(',') === b.c.join(','); }
+  /* The day definition in force: today-only swap (if dated today) > permanent custom > default. */
+  function resolveDay(state, dayIdx, today) {
+    today = today || localDate();
+    const t = state.todaySwaps;
+    if (t && t.dayIdx === dayIdx && t.date === today) return { m: t.m.slice(), c: t.c.slice(), custom: true, temporary: true };
+    const c = state.program && state.program[dayIdx];
+    if (c) return { m: c.m.slice(), c: c.c.slice(), custom: true, temporary: false };
+    return Object.assign(defaultDay(dayIdx), { custom: false, temporary: false });
+  }
+  /* Pure edit on a day definition. op: {type:'swap'|'remove'|'add'|'move', section:'m'|'c', index, id, to} */
+  function editDay(def, op) {
+    const d = { m: def.m.slice(), c: def.c.slice() };
+    const arr = d[op.section]; if (!arr) return { ok: false, error: 'Bad section', def: d };
+    const max = op.section === 'm' ? MAX_MAIN : MAX_CORE;
+    if (op.type === 'swap') {
+      if (!EX[op.id] || op.index < 0 || op.index >= arr.length) return { ok: false, error: 'Bad swap', def: d };
+      if (arr.includes(op.id) && arr[op.index] !== op.id) return { ok: false, error: `${EX[op.id].name} is already on this day`, def: d };
+      arr[op.index] = op.id;
+    } else if (op.type === 'remove') {
+      if (op.index < 0 || op.index >= arr.length) return { ok: false, error: 'Bad index', def: d };
+      if (op.section === 'm' && arr.length <= 1) return { ok: false, error: 'Keep at least one main exercise', def: d };
+      arr.splice(op.index, 1);
+    } else if (op.type === 'add') {
+      if (!EX[op.id]) return { ok: false, error: 'Unknown exercise', def: d };
+      if (arr.length >= max) return { ok: false, error: `Limit of ${max} in this section`, def: d };
+      if (arr.includes(op.id)) return { ok: false, error: `${EX[op.id].name} is already on this day`, def: d };
+      arr.push(op.id);
+    } else if (op.type === 'move') {
+      const to = op.to; if (op.index < 0 || op.index >= arr.length || to < 0 || to >= arr.length) return { ok: false, error: 'Bad move', def: d };
+      const [x] = arr.splice(op.index, 1); arr.splice(to, 0, x);
+    } else return { ok: false, error: 'Unknown op', def: d };
+    return { ok: true, def: d };
+  }
+  /* Apply an edit to the state. scope: 'plan' (permanent) | 'today'. Returns {ok, error}. */
+  function applyEdit(state, dayIdx, op, scope, today) {
+    today = today || localDate();
+    const cur = resolveDay(state, dayIdx, today);
+    const r = editDay(cur, op); if (!r.ok) return r;
+    if (scope === 'today') {
+      state.todaySwaps = { date: today, dayIdx, m: r.def.m, c: r.def.c };
+    } else {
+      // Permanent: write to program; if a today-only override exists for this day, apply the same op to it too so the change is visible now.
+      const base = (state.program && state.program[dayIdx]) ? { m: state.program[dayIdx].m.slice(), c: state.program[dayIdx].c.slice() } : defaultDay(dayIdx);
+      const rb = cur.temporary ? editDay(base, op) : r;
+      state.program = state.program || {};
+      if (sameDef(rb.def, defaultDay(dayIdx))) delete state.program[dayIdx]; else state.program[dayIdx] = { m: rb.def.m, c: rb.def.c };
+      if (cur.temporary) { if (rb.ok && sameDef(r.def, rb.def)) { delete state.todaySwaps; } else state.todaySwaps = { date: today, dayIdx, m: r.def.m, c: r.def.c }; }
+    }
+    return { ok: true };
+  }
+  function resetDay(state, dayIdx, scope) {
+    if (scope === 'today') { if (state.todaySwaps && state.todaySwaps.dayIdx === dayIdx) delete state.todaySwaps; }
+    else { if (state.program) delete state.program[dayIdx]; if (state.todaySwaps && state.todaySwaps.dayIdx === dayIdx) delete state.todaySwaps; }
+  }
+  /* Library listing for the picker: no-equipment exercises grouped and sorted by level, then name. */
+  function library(opts) {
+    opts = opts || {};
+    const ids = Object.keys(EX).filter(id => !EX[id].equipment && (!opts.group || EX[id].group === opts.group) && (!opts.exclude || !opts.exclude.includes(id)));
+    ids.sort((a, b) => GROUP_ORDER.indexOf(EX[a].group) - GROUP_ORDER.indexOf(EX[b].group) || EX[a].level - EX[b].level || EX[a].name.localeCompare(EX[b].name));
+    return ids;
+  }
+  /* Sensible swaps for an exercise: same movement group, easier first when the exercise is hard. */
+  function alternativesFor(exId, exclude) {
+    const ex = EX[exId]; if (!ex) return [];
+    return library({ group: ex.group, exclude: [exId].concat(exclude || []) });
   }
 
   /* Honest time estimate (minutes). */
@@ -276,6 +432,7 @@
     num('extraSets', 0, 3); num('burnoutSeconds', 15, 120); num('warmupSeconds', 0, 900); num('cooldownSeconds', 0, 900);
     ['soundOn', 'voiceOn', 'hapticsOn', 'countdownOn', 'keepAwake', 'burnoutOn', 'quotesOn'].forEach(k => { if (typeof src[k] === 'boolean') s[k] = src[k]; });
     if (['off', 'light', 'full'].includes(src.cueLevel)) s.cueLevel = src.cueLevel;
+    if (['recorded', 'device'].includes(src.coachVoice)) s.coachVoice = src.coachVoice;
     if (typeof src.voiceURI === 'string' && src.voiceURI.length <= 200) s.voiceURI = src.voiceURI;
     const vr = Number(src.voiceRate); if (Number.isFinite(vr) && vr >= 0.7 && vr <= 1.3) s.voiceRate = Math.round(vr * 100) / 100;
     if (legacy) {
@@ -287,7 +444,31 @@
   }
 
   function emptyState() {
-    return { schemaVersion: SCHEMA_VERSION, week: 1, day: 0, done: {}, prs: {}, sets: {}, settings: Object.assign({}, DEFAULT_SETTINGS), session: null, history: [], quoteIdx: 0 };
+    return { schemaVersion: SCHEMA_VERSION, week: 1, day: 0, done: {}, prs: {}, sets: {}, settings: Object.assign({}, DEFAULT_SETTINGS), session: null, history: [], quoteIdx: 0, program: {}, todaySwaps: null };
+  }
+  function cleanIdList(raw, max) {
+    if (!Array.isArray(raw)) return null;
+    const out = []; for (const id of raw) { if (typeof id === 'string' && EX[id] && !out.includes(id)) out.push(id); if (out.length >= max) break; }
+    return out;
+  }
+  function cleanProgram(raw) {
+    const out = {};
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+    for (const k of Object.keys(raw)) {
+      if (!/^[0-6]$/.test(k) || !raw[k] || typeof raw[k] !== 'object') continue;
+      const m = cleanIdList(raw[k].m, MAX_MAIN), c = cleanIdList(raw[k].c, MAX_CORE) || [];
+      if (!m || !m.length) continue;
+      const def = { m, c }; if (!sameDef(def, defaultDay(+k))) out[+k] = def;
+    }
+    return out;
+  }
+  function cleanTodaySwaps(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(raw.date))) return null;
+    const dayIdx = Number(raw.dayIdx); if (!Number.isInteger(dayIdx) || dayIdx < 0 || dayIdx > 6) return null;
+    const m = cleanIdList(raw.m, MAX_MAIN), c = cleanIdList(raw.c, MAX_CORE) || [];
+    if (!m || !m.length) return null;
+    return { date: raw.date, dayIdx, m, c };
   }
 
   /* Normalise any raw object (v1 storage, v1 backup, v2 storage, v2 backup) into a clean v2 state. */
@@ -295,7 +476,7 @@
     const notes = [];
     const st = emptyState();
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { state: st, notes: ['Empty or unrecognised data; starting fresh.'], from: 'empty' };
-    const isV2 = raw.schemaVersion === SCHEMA_VERSION;
+    const isV2 = Number(raw.schemaVersion) >= 2;
     st.week = clamp(Number(raw.week) || 1, 1, 8);
     st.day = clamp(Number(raw.day) || 0, 0, 6);
     st.done = cleanDone(raw.done);
@@ -305,6 +486,8 @@
     st.session = cleanSession(raw.session);
     st.history = cleanHistory(raw.history);
     st.quoteIdx = clamp(Math.round(Number(raw.quoteIdx)) || 0, 0, 9999);
+    st.program = cleanProgram(raw.program);
+    st.todaySwaps = cleanTodaySwaps(raw.todaySwaps);
     return { state: st, notes, from: isV2 ? 'v2' : 'v1' };
   }
 
@@ -343,6 +526,8 @@
     const seen = new Set(out.history.map(h => `${h.key}|${h.startedAt}`));
     for (const h of incoming.history) if (!seen.has(`${h.key}|${h.startedAt}`)) out.history.push(h);
     out.history.sort((a, b) => a.startedAt - b.startedAt);
+    out.program = out.program || {};
+    for (const k of Object.keys(incoming.program || {})) if (!out.program[k]) out.program[k] = incoming.program[k];
     return out;
   }
 
@@ -471,7 +656,7 @@
     "The difference between the impossible and the possible lies in a person's determination.",
     "When you have a clear vision of your goal, it's easier to take the first step toward it."
   ];
-  const COACH_LINES = ['Keep breathing. Smooth reps.', 'Stop two reps before failure.', 'Brace the stomach, body in one line.', 'Control the way down.', 'Full range, no bouncing.', 'Good. Steady pace.'];
+  const COACH_LINES = ['Breathe. Smooth reps.', 'Two reps in the tank. Stop before failure.', 'Brace. One straight line.', 'Own the way down.', 'Full range. No bouncing.', 'Good. Steady pace.', 'Chin neutral, eyes on the floor.', 'Every rep counts. Make it clean.', 'Stay tight through the middle.', 'Quality over speed.', 'Drive. You have more than that.', 'Lock in. Finish the set strong.'];
 
   /* ------------------------------------------------------------------ */
   /* Timer math (deadline based — survives tab suspension)                */
@@ -487,8 +672,9 @@
 
   return {
     SCHEMA_VERSION, STORAGE_V1, STORAGE_V2, STORAGE_PREIMPORT, MAX_IMPORT_BYTES, DEFAULT_SETTINGS,
-    EX, PROGRAM, PHASES, LEGACY_PROGRAM,
+    EX, PROGRAM, PHASES, LEGACY_PROGRAM, GROUPS, GROUP_ORDER, STRENGTH_GROUPS, MAX_MAIN, MAX_CORE,
     prescription, dayPlan, estimateMinutes, restFor, buildQueue, sessionPosition,
+    localDate, defaultDay, resolveDay, editDay, applyEdit, resetDay, library, alternativesFor,
     normalize, merge, parseImport, emptyState, cleanSetEntry,
     WARMUP_STEPS, WARMUP_STEPS_LIGHT, COOLDOWN_STEPS, COACH_LINES, QUOTES, scriptStep,
     secondsLeft, fmt, elapsedMs, clamp

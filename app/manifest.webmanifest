@@ -1,13 +1,13 @@
 {
   "name": "Calisthenics Lab",
   "short_name": "Cali Lab",
-  "description": "8-week bodyweight calisthenics coach with guided sessions, rest timers and local progress tracking.",
+  "description": "Bodyweight calisthenics coach: 8-week plan, editable days, guided sessions with a recorded coach, rest timers and local progress tracking.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0f1726",
-  "theme_color": "#0f1726",
+  "background_color": "#0e0f12",
+  "theme_color": "#0e0f12",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

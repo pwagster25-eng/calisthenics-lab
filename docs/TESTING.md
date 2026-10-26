@@ -1,6 +1,37 @@
 # Testing evidence, limitations, and iPhone QA checklist
 
-## 1. Automated results (2026-10-22, Node 22.22, Playwright 1.56 / Chromium 1194; browser suite run 4× consecutively after the final change, 14/14 each time)
+## 0. v3.0 results (2026-10-25, Node 22.22, Playwright 1.56 / Chromium; browser suite run 3× after the final change, 20/20 each time)
+
+### Unit tests — `node --test tests/unit.test.js` → **17 / 17 pass** (the 11 below plus:)
+
+12. v3 library: every one of the 93 exercises is complete (name, cue, how-to, kind, group, level, prescription); the picker lists ≥ 80 bodyweight exercises, hides the equipment-dependent rows, and sorts easier variations first.
+13. v3 figures: every exercise has 1–3 frames; every strip renders as SVG with no `undefined`/`NaN`, the figure sits on the canvas, and the aria-label escapes markup.
+14. v3 editing: swap / add / remove / move are validated (unknown ids, duplicates on the day, section limits, at least one main exercise) and never mutate their input.
+15. v3 today vs plan: a today-only swap is visible today, gone tomorrow, and isolated to its day; a permanent edit made while a today override exists applies to both; plans built from the resolved day log under the swapped exercise's id; resets behave; editing back to the default clears the override.
+16. v3 storage: overrides are validated on load (bad ids dropped, lengths capped, bad dates/days rejected, defaults not stored), round-trip through normalize and import, and merge keeps the current customisation; v2 data loads with empty overrides and schema 3.
+17. v3 coach: the manifest covers every exercise (name / next / cue / how), every quote and coach line, every rest length in Settings, set numbers, day names, warm-up/cool-down steps and all fixed cues; every clip has a file, a plausible duration and a hash-named file; no attribution survives in the quotes.
+
+### Browser tests — `node tests/browser.test.js` → **20 / 20 pass** (the 16 below plus:)
+
+- G1 — Edit day → Swap → library filtered to Push → pick Knee push-ups → **Just for today**: row, badge and thumbnail update, `todaySwaps` dated, `program` untouched, log key `1-0-knee-push-ups`; advance the fake clock past midnight and reload → default is back and the badge is gone.
+- G2 — permanent swap, add to core, move, remove: all persist across reload (`program[0]` as expected, no today override); Reset to default clears it; Edit is refused with a toast while a session is active.
+- G3 — recorded coach: manifest loads (538 clips); session start queues `day_0, warm_start, warm_0, q_n`; skip warm-up → `warm_done, ex_standard-push-ups, cue_standard-push-ups`; figures present on the work and rest screens and the next-up thumbnail; Log → `logged, rest_45`; a quote plays ~4 s in and its duration fits before the 10-s call; at 10 s → `next_standard-push-ups, set_2`; Device-voice mode bypasses clips.
+- G4 — service worker: shell cache `calisthenics-lab-v3.0.0` includes `figures.js` and `audio/manifest.json`; the audio cache fills with the essential clips (≥ 290) in the background.
+
+Screenshots: `tests/screenshots/v3-01-plan.png`, `v3-02-exercise-expanded.png`, `v3-03-edit-day.png`, `v3-04-library-picker.png`, `v3-05-work.png`, `v3-06-rest.png`.
+
+### v3 device checks to add to §3 (cannot be proven headless)
+
+21. **Recorded coach plays:** Settings → Test voice should play Apollo ("Voice check…"), not the system voice. If it is the system voice, open Settings once with Wi-Fi on and wait a minute (the clips download in the background), then try again.
+22. **Silent switch with the recorded coach:** ring/silent switch on silent → Test voice. Expected: the recorded coach **plays** (media audio ignores the switch) while beeps stay silent. Record what actually happens; if the coach is silenced too, say so and I will switch the clips to the Web Audio path with a user-facing note instead.
+23. **Playback from a timer, not a tap:** start a session, log a set, put the phone down: "Logged. Rest 45 seconds." then, at 10 s, "Next up: …, set two" must play without touching the screen. If only the first plays, note it (would mean iOS re-locked the media element).
+24. **Overlap:** on a 30-second rest the quote must finish before "Next up". On a 20-second rest no quote should play.
+25. **Music ducking:** play Apple Music / Spotify, then start a session. Note whether music pauses, ducks, or keeps playing when a clip plays (expected on iOS: pauses or ducks). Tell me which you prefer.
+26. **Offline after first launch:** open the app on Wi-Fi, wait two minutes, Airplane Mode, force-quit, relaunch, start a session: coach clips should still play (cached) and the figures render (no network needed).
+27. **Edit flow with one thumb:** Edit this day → Swap → pick → Just for today, in under 20 seconds; confirm the sticky "Just for today / Save to my plan" bar does not cover the last list item.
+28. **Figures legibility:** at your normal text size, the work-screen figure should be readable at arm's length; tell me if the hand-position inset is too small to be useful.
+
+## 1. v2.0/v2.1 automated results (2026-10-22, Node 22.22, Playwright 1.56 / Chromium 1194; browser suite run 4× consecutively after the final change, 14/14 each time)
 
 ### Unit tests — `node --test tests/unit.test.js` → **11 / 11 pass**
 
@@ -86,7 +117,14 @@ Host the `app/` folder over HTTPS (GitHub Pages, Netlify drop, or any static hos
 19. Complete a full Monday within the cap: check the estimate against the real elapsed time and tell me the delta — the estimator's 3 s/rep assumption is the main thing to calibrate.
 20. Accessibility: enable Larger Text (one or two steps) and confirm the session screen still fits without horizontal scroll; enable Reduce Motion and confirm nothing animates.
 
-## 4. Known limitations (v2.0)
+## 4. Known limitations (v3.0)
+
+- The recorded coach is one voice (Apollo) at one speed; changing a line means regenerating that clip with the ElevenLabs pipeline (maintainer action, ~1 s per clip). The device voice remains available and is the automatic fallback.
+- First launch after the update downloads ~12 MB of audio in the background; until the essential 3.5 MB is in, clips are fetched on demand (short delay before a cue on a slow connection) or the device voice fills in.
+- Figures are schematic silhouettes drawn from a pose model; they show position and direction, not fine technique (hand width is shown in a separate inset for push-up variants).
+- Today-only swaps are keyed to the phone's local date; a session that runs past midnight keeps the plan it started with only while the session is active.
+
+### Known limitations carried over from v2.0
 
 - No background cues while the screen is locked or the app is backgrounded. Mitigation is the wake lock; there is no reliable web-only alternative on iOS without push notifications and a server, which would violate the no-external-services constraint.
 - Vibration does nothing on iPhone Safari (platform limitation); the switch is labelled accordingly.

@@ -1,5 +1,35 @@
 # Change log
 
+## v3.0 (2026-10-25) — editable programme, exercise library, figures, recorded coach, new look
+
+User requests (voice conversation): swap exercises in and out of the plan from a bodyweight-only library; a visual for every exercise ("not a cheesy stick figure"); a more aesthetic, less all-blue interface ("you design it"); a gritty, non-robotic coach voice — approved use of ElevenLabs for pre-recorded audio (voice "Apollo"); and both permanent plan edits **and** quick "just for today" swaps.
+
+**Programme editing**
+- **Edit this day** on the plan: reorder (↑ ↓), **⇄ Swap** any exercise, **✕ Remove**, **+ Add** to main work or the core finisher, **Reset to default**. Limits: 1–8 main, 0–4 core, no duplicates on a day.
+- Every change is either **Just for today** (stored as `todaySwaps` with the local date; silently expires at midnight) or **Save to my plan** (stored as `program[dayIdx]`). A permanent edit made while a today-only override is active is applied to both, so what you see is what you get. Days that match the default again drop their override automatically.
+- Badges: "Changed for today only" / "Customised". Editing is refused while a guided session is active for that day (end it first).
+- Log keys stay `week-day-exerciseId`, so swapping and swapping back never loses history; logs for exercises no longer on a day still show under "Also logged this day".
+- Pure, tested API in `core.js`: `resolveDay`, `editDay`, `applyEdit`, `resetDay`, `library`, `alternativesFor`, `localDate`. Everything is validated on load (`cleanProgram`, `cleanTodaySwaps`) and survives export/import; merge keeps the current customisation. Schema version is now **3** (additive; v2 and v1 files load unchanged, and a v3 backup still opens in v2.1).
+
+**Exercise library** — 93 exercises (was 34), all bodyweight; the only "props" are a wall, a couch/step, stairs or a doorframe. Each has a difficulty level (1–3, shown as dots), movement group (push / legs / hinge & glutes / upper back / core / conditioning / mobility), rep or hold prescription, cue and a full how-to with the common mistake. The picker filters by group, lists easier variations first, and shows the how-to and the picture sequence for the selected item. Table/band rows remain in the data as an equipment-dependent entry but are hidden from the picker.
+
+**Figures** — `app/figures.js`: a small pose model (hip position + limb angles) rendered as solid silhouettes with a near/far limb shade, floor line, props (step, couch, wall, post, stairs) and a top-view hand-placement inset for push-up variants. 2–3 labelled frames per exercise (start → movement → finish) with arrows. Shown as a thumbnail on every plan row and in the picker, as the full strip when a row is expanded, and on the session **work**, **rest** (next exercise) and **burnout** screens. Everything is generated from fixed numeric tables — no user data goes through `innerHTML`.
+
+**Recorded coach** — 538 clips generated once with ElevenLabs (voice Apollo, `eleven_multilingual_v2`), 22.05 kHz / 32 kbps mono, 11.8 MB total:
+- per exercise: name, "Next up: …", the form cue, and the full explanation; every rest length offered in Settings; set numbers 1–6; day names; warm-up / cool-down steps; 12 coach lines; all 100 motivational lines; the fixed cues (logged, go, burnout intro/halfway/ten seconds/stop, cap warnings, skipped, undone, complete…).
+- Playback engine (`Coach` in `index.html`): a 2-element `HTMLAudio` pool unlocked on the first tap, a sequential queue with preload of the next clip, `urgent` to cut in, text fallback through `speechSynthesis` for any clip that is missing or fails to play, and a **Device voice** setting that bypasses the clips entirely. Motivational lines are now chosen by **duration** so they always finish before the 10-second "Next up" call. Media-element audio should also play with the iPhone silent switch on (to confirm on device — see TESTING §3).
+- Caching: the service worker caches audio **cache-first** in a separate `calisthenics-lab-audio-v1` cache keyed by clip hash (file names are `id.hash.mp3`, so a changed line can never be served stale). Essential clips (~3.5 MB) are fetched in the background right after activation, then the explanations and quotes (~8 MB), at low concurrency so the page stays responsive; anything not yet cached is fetched on demand.
+- Pipeline in `tools/voice/`: `catalogue.mjs` derives the clip list and speech-friendly text from `core.js` (45° → "45 degrees", 2–3 → "2 to 3", 90/90 → "ninety-ninety" …); `generate.mjs` regenerates only clips whose text changed and writes `app/audio/manifest.json`. The API key is read from the environment and is not stored anywhere in the repository.
+
+**Visual redesign** — new palette: charcoal base (`#0e0f12`), chalk text, **ember** `#ff5a2e` for primary actions, amber for timers/burnout, teal rest ring, mint for "done". Movement groups are colour-coded (stripe on every thumbnail and day dots). Rounded display numerals for clocks and reps, uppercase tracked labels, larger day hero with the estimate as a number, colour-coded day strip, phase-tinted session backgrounds (warm-up amber, rest teal, burnout ember, cool-down blue, done green). New icons in the same palette. `theme-color` and manifest colours updated.
+
+**Other**
+- Settings: **Coach voice** (Recorded coach / Device voice); the device-voice picker and speed are kept as the fallback; coaching level and quote switches unchanged.
+- Service-worker cache bumped to `calisthenics-lab-v3.0.0`; the shell now includes `figures.js` and `audio/manifest.json`.
+- Tests: 17 unit tests (+6: library completeness, figure coverage, edit operations, today/plan semantics and expiry, storage validation/merge, clip catalogue coverage) and 20 browser checks (+4: today-only swap with midnight expiry, permanent edits/reset/session guard, coach clip sequencing and quote-fit, service-worker caching). Browser tests opt out of the service worker (`?nosw`) except the SW test, so SW warm-up cannot starve the page during the run.
+
+**Not changed:** the week scaling, rest logic, time cap, import safety and the log-derived session position from v2 — all v2 tests still pass unchanged apart from one shortened label.
+
 ## v2.1 (2026-10-22) — after the first real session on the phone
 
 User feedback: works on iPhone; didn't know several exercises; wanted more sets (finished a 14-set day in 16 min); wanted the voice to say more mid-workout, better voices, warm-up and cool-down timers, and a timed burnout set to finish each exercise. Also supplied a list of motivational lines to be spoken without attribution.
