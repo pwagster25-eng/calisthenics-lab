@@ -245,8 +245,10 @@ input[type=range]{width:160px;accent-color:var(--accent)}
       <div class="setting"><span>3-2-1 countdown beeps</span><button class="switch" role="switch" data-set="countdownOn" aria-checked="true"></button></div>
       <div class="setting"><span>Vibration (not available on iPhone Safari)</span><button class="switch" role="switch" data-set="hapticsOn" aria-checked="true"></button></div>
       <div class="setting"><span>Keep screen awake during a session</span><button class="switch" role="switch" data-set="keepAwake" aria-checked="true"></button></div>
+      <div class="setting"><label for="audioMix">Music from other apps</label><select id="audioMix"><option value="mix">Keeps playing</option><option value="duck">Lowered while coach talks</option><option value="solo">Paused by the coach</option></select></div>
+      <p class="muted small">Keeps playing / Lowered: the coach is mixed over your music (Lowered needs iOS 17 or later; otherwise it behaves like Keeps playing). With either of these the coach follows the ring/silent switch. Paused by the coach: the coach takes over like a music app would, and plays even on silent.</p>
       <div class="grid2"><button id="testBeep">Test beep</button><button id="testVoice">Test voice</button></div>
-      <p class="muted small" id="audioNote">iPhone: audio unlocks when you tap Start. Beeps follow the ring/silent switch; the recorded coach should play even on silent (media audio). Timers are deadline-based and correct themselves when you return, but no sound can play while the screen is locked — keep the screen on.</p>
+      <p class="muted small" id="audioNote">iPhone: audio unlocks when you tap Start. Beeps follow the ring/silent switch; so does the coach unless "Music from other apps" is set to Paused by the coach. Timers are deadline-based and correct themselves when you return, but no sound can play while the screen is locked — keep the screen on.</p>
     </section>
     <section class="panel">
       <h3 style="margin-top:0">Time cap</h3>
@@ -433,7 +435,7 @@ const Coach = {
     this.queue.push(...items);
     if (!this.playing) this.drain();
   },
-  stop() { this.token++; this.queue = []; this.playing = false; Snd.silence(); for (const a of this.pool) { try { a.pause(); a.currentTime = 0; } catch {} } },
+  stop() { this.token++; this.queue = []; this.playing = false; Snd.silence(); for (const a of this.pool) { try { a.pause(); a.currentTime = 0; } catch {} } try { if (this.src) { this.src.stop(); this.src = null; } } catch {} },
   async drain() {
     this.playing = true; const tok = this.token;
     while (this.queue.length && tok === this.token) {
@@ -445,7 +447,38 @@ const Coach = {
     }
     if (tok === this.token) this.playing = false;
   },
+  /* iOS audio-session behaviour. 'solo' = media playback (pauses other apps' audio, plays on silent).
+     'mix'/'duck' use the Audio Session API on iOS 17+ (ambient / transient); where it is missing, clips go
+     through Web Audio instead, which mixes with other audio on every iOS version (and follows the silent switch). */
+  applySession() {
+    const m = state.settings.audioMix;
+    try { if (navigator.audioSession) navigator.audioSession.type = m === 'solo' ? 'playback' : m === 'duck' ? 'transient' : 'ambient'; } catch {}
+  },
+  webAudio() { return state.settings.audioMix !== 'solo' && !navigator.audioSession && !!(window.AudioContext || window.webkitAudioContext); },
+  buffers: new Map(),
+  async buffer(id) {
+    if (this.buffers.has(id)) return this.buffers.get(id);
+    const r = await fetch('audio/' + this.clips[id].f); const ab = await r.arrayBuffer();
+    const buf = await new Promise((res, rej) => { try { const p = Snd.ctx.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); } catch (e) { rej(e); } });
+    if (this.buffers.size > 24) this.buffers.delete(this.buffers.keys().next().value);
+    this.buffers.set(id, buf); return buf;
+  },
+  async playBuffer(id, tok) {
+    if (!Snd.ctx) Snd.unlock(); if (!Snd.ctx) return false;
+    let buf; try { buf = await this.buffer(id); } catch { return false; }
+    if (tok !== this.token) return true;
+    return new Promise(res => {
+      try {
+        if (Snd.ctx.state !== 'running') Snd.ctx.resume();
+        const src = Snd.ctx.createBufferSource(); src.buffer = buf; src.connect(Snd.ctx.destination);
+        this.src = src; let done = false; const fin = () => { if (done) return; done = true; if (this.src === src) this.src = null; res(true); };
+        src.onended = fin; src.start(0);
+        setTimeout(fin, buf.duration * 1000 + 1500);
+      } catch { res(false); }
+    });
+  },
   playClip(id, tok) {
+    if (this.webAudio()) return this.playBuffer(id, tok);
     return new Promise(res => {
       if (!this.pool.length) this.unlock();
       const a = this.pool[this.cur]; this.cur = (this.cur + 1) % this.pool.length;
@@ -472,7 +505,7 @@ const Coach = {
     return null;
   }
 };
-Coach.load();
+Coach.load(); Coach.applySession();
 const Wake = {
   lock: null,
   async request() { if (!state.settings.keepAwake || !('wakeLock' in navigator)) return; try { this.lock = await navigator.wakeLock.request('screen'); this.lock.addEventListener('release', () => { this.lock = null; }); } catch {} },
@@ -677,13 +710,14 @@ function renderVoices() {
 function renderSettings() {
   const s = state.settings;
   NUM_SETTINGS.forEach(k => { $(k).value = String(s[k]); });
-  $('cueLevel').value = s.cueLevel; $('coachVoice').value = s.coachVoice; $('voiceRate').value = String(s.voiceRate); $('voiceRateVal').textContent = `${s.voiceRate.toFixed(2)}×`;
+  $('cueLevel').value = s.cueLevel; $('coachVoice').value = s.coachVoice; $('audioMix').value = s.audioMix; $('voiceRate').value = String(s.voiceRate); $('voiceRateVal').textContent = `${s.voiceRate.toFixed(2)}×`;
   $('coachNote').textContent = (Coach.clips ? 'Recorded coach: a real voice, pre-recorded for every cue, exercise and quote (about 12 MB, downloaded once and kept for offline use). ' : 'Recorded coach clips are not available right now (offline before the first download?) — the device voice is used until they are. ') + 'Device voice: the phone’s own text-to-speech.';
   renderVoices();
   document.querySelectorAll('.switch').forEach(b => b.setAttribute('aria-checked', String(!!s[b.dataset.set])));
 }
 NUM_SETTINGS.forEach(k => { $(k).onchange = e => { state.settings[k] = Number(e.target.value); if (state.settings.warnMinutes >= state.settings.capMinutes) state.settings.warnMinutes = state.settings.capMinutes - 5; save(); renderSettings(); renderPlan(); }; });
 $('cueLevel').onchange = e => { state.settings.cueLevel = e.target.value; save(); };
+$('audioMix').onchange = e => { state.settings.audioMix = e.target.value; save(); Coach.applySession(); Snd.unlock(); Coach.say('test', { urgent: true, force: true }); };
 $('coachVoice').onchange = e => { state.settings.coachVoice = e.target.value; save(); Snd.unlock(); Coach.say('test', { urgent: true, force: true }); };
 $('voiceURI').onchange = e => { state.settings.voiceURI = e.target.value; save(); Snd.unlock(); Snd.speak('This is the device voice. Rest forty-five seconds, then bodyweight squats.', { urgent: true }); };
 $('voiceRate').oninput = e => { state.settings.voiceRate = Number(e.target.value); $('voiceRateVal').textContent = `${state.settings.voiceRate.toFixed(2)}×`; save(); };

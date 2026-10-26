@@ -1,6 +1,6 @@
 /* Calisthenics Lab service worker — offline shell + recorded coach clips. No network sync, no analytics.
    Bump CACHE when shipping a new version so clients pick it up. */
-const CACHE = 'calisthenics-lab-v3.0.1';
+const CACHE = 'calisthenics-lab-v3.1.0';
 const AUDIO = 'calisthenics-lab-audio-v1'; // keyed by clip hash in the manifest, so it survives app updates
 const ASSETS = ['./', './index.html', './core.js', './figures.js', './manifest.webmanifest', './audio/manifest.json', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-512-maskable.png'];
 

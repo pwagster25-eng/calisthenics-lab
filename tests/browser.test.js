@@ -345,6 +345,10 @@ const V1_SEED = {
     assert.equal(await page.locator('#rFig svg').count(), 1, 'figure on the rest screen');
     const dev = await page.evaluate(() => { const c = window.__cl.Coach; window.__cl.state.settings.coachVoice = 'device'; const u = c.useClips(); window.__cl.state.settings.coachVoice = 'recorded'; return [u, c.useClips(), c.text('go'), c.dur('rest_45') > 0]; });
     assert.deepEqual(dev, [false, true, 'Go!', true]);
+    // Music mixing: without the Audio Session API (Chromium) the 'mix' default routes clips through Web Audio and decodes them.
+    const wa = await page.evaluate(async () => { const c = window.__cl.Coach; const s = window.__cl.state.settings; const mix = c.webAudio(); s.audioMix = 'solo'; const solo = c.webAudio(); s.audioMix = 'mix'; let dur; try { dur = (await c.buffer('go')).duration; } catch (e) { dur = 'decode failed: ' + e; } return [mix, solo, dur, c.buffers.size]; });
+    assert.equal(wa[0], true, 'mix uses Web Audio when audioSession is unavailable'); assert.equal(wa[1], false, 'solo keeps the media element');
+    assert.ok(typeof wa[2] === 'number' && wa[2] > 0.3 && wa[2] < 2, 'decoded "Go!" clip: ' + wa[2]); assert.ok(wa[3] >= 1, 'decoded buffers are cached');
     await page.click('#endSession');
   });
   await step('v3: service worker precaches the shell and the essential clips (not the long ones) and serves audio cache-first', async () => {
@@ -353,10 +357,10 @@ const V1_SEED = {
       const reg = await navigator.serviceWorker.ready;
       for (let i = 0; i < 60; i++) { const a = await caches.open('calisthenics-lab-audio-v1'); if ((await a.keys()).length >= 294) break; await new Promise(r => setTimeout(r, 500)); }
       const keys = await caches.keys(); const a = await caches.open('calisthenics-lab-audio-v1'); const ak = (await a.keys()).map(r => r.url);
-      const c = await caches.open('calisthenics-lab-v3.0.1'); const ck = (await c.keys()).map(r => r.url);
+      const c = await caches.open('calisthenics-lab-v3.1.0'); const ck = (await c.keys()).map(r => r.url);
       return { keys, audio: ak.length, essential: ak.filter(u => /\/(ex|next|cue|rest|set)_/.test(u)).length, how: ak.filter(u => /\/how_/.test(u)).length, shell: ck.some(u => /figures\.js/.test(u)) && ck.some(u => /manifest\.json/.test(u)), scope: reg.scope };
     });
-    assert.ok(info.keys.includes('calisthenics-lab-v3.0.1') && info.keys.includes('calisthenics-lab-audio-v1'), JSON.stringify(info));
+    assert.ok(info.keys.includes('calisthenics-lab-v3.1.0') && info.keys.includes('calisthenics-lab-audio-v1'), JSON.stringify(info));
     assert.ok(info.shell, 'shell assets cached');
     assert.ok(info.essential >= 290, 'essential clips cached: ' + info.essential);
   });

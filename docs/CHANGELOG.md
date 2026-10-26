@@ -1,5 +1,14 @@
 # Change log
 
+## v3.1.0 (2026-10-25) — music keeps playing
+
+User report: music stopped whenever the coach spoke (the clips played through a media element, which iOS treats as a music player and lets it take over the audio session).
+
+- New setting **Audio & cues → Music from other apps**: *Keeps playing* (default), *Lowered while coach talks*, *Paused by the coach*.
+- Implementation: on iOS 17+ the Audio Session API is set to `ambient` / `transient` / `playback` respectively (`Coach.applySession()`); where that API is missing, *Keeps playing* and *Lowered* route the clips through Web Audio (`decodeAudioData` + buffer sources, small decoded-buffer cache), which mixes with other audio on every iOS version. *Paused by the coach* keeps the media-element path and plays even on silent.
+- Trade-off made explicit in the setting text: when the coach is mixed in, it follows the ring/silent switch like the beeps do.
+- Service-worker cache bumped to v3.1.0. Browser test G3 now also checks the Web Audio route decodes a clip; 20/20, unit 17/17.
+
 ## v3.0.1 (2026-10-25)
 
 - The "+ Add an exercise" buttons under Main work and Core finisher are now always visible (they were only shown in edit mode). Adding asks the same question as swapping: just for today, or saved to the plan.

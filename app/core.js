@@ -199,7 +199,8 @@
     quotesOn: true,        // motivational lines during longer rests
     voiceURI: '',          // device voice for fallback / 'device' mode ('' = automatic)
     voiceRate: 1,
-    coachVoice: 'recorded' // 'recorded' (bundled clips) | 'device' (speechSynthesis)
+    coachVoice: 'recorded', // 'recorded' (bundled clips) | 'device' (speechSynthesis)
+    audioMix: 'mix'        // 'mix' (music keeps playing) | 'duck' (music lowered while the coach talks) | 'solo' (coach pauses music, plays on silent)
   };
 
   /* ------------------------------------------------------------------ */
@@ -433,6 +434,7 @@
     ['soundOn', 'voiceOn', 'hapticsOn', 'countdownOn', 'keepAwake', 'burnoutOn', 'quotesOn'].forEach(k => { if (typeof src[k] === 'boolean') s[k] = src[k]; });
     if (['off', 'light', 'full'].includes(src.cueLevel)) s.cueLevel = src.cueLevel;
     if (['recorded', 'device'].includes(src.coachVoice)) s.coachVoice = src.coachVoice;
+    if (['mix', 'duck', 'solo'].includes(src.audioMix)) s.audioMix = src.audioMix;
     if (typeof src.voiceURI === 'string' && src.voiceURI.length <= 200) s.voiceURI = src.voiceURI;
     const vr = Number(src.voiceRate); if (Number.isFinite(vr) && vr >= 0.7 && vr <= 1.3) s.voiceRate = Math.round(vr * 100) / 100;
     if (legacy) {
