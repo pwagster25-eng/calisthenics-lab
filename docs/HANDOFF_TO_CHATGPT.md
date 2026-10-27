@@ -1,4 +1,8 @@
-# Handoff: Calisthenics Lab v3.0
+# Handoff: Calisthenics Lab v4.0
+
+## v4.0 in one paragraph
+Progressive mode replaces the fixed 8-week table with 11 **ladders** of bodyweight variations and a weekly **template** of upper/lower supersets, a core circuit and two timed conditioning circuits, in 4-week blocks with a deload. Progression is earned per ladder from the log plus a one-tap effort rating (Easy/Hard/Max): top of the range on every working set and nothing rated Max → +1 set to the block cap, then the next rung; two weak sessions → one rung back. Applied automatically at session end with Undo. The queue interleaves supersets (A1 A2 A1 A2…) and circuits; `restAfter(entry, next)` decides rests by block structure. Evidence and rationale are in CHANGELOG v4.0 (PubMed DOIs). Things worth a second opinion: the progression thresholds (every set at `hi`, cap 4/5), whether the hinge/upper-back ladders progress meaningfully without load, and whether 20 s is enough between A1 and A2 on floor-to-standing transitions.
+
 
 Summary for a second reviewer. Reasoning for the v2 rebuild in `AUDIT_REPORT.md`; all changes in `CHANGELOG.md`; evidence in `TESTING.md`. Live at https://pwagster25-eng.github.io/calisthenics-lab/app/ (user-approved GitHub Pages deployment).
 

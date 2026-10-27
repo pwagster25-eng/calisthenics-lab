@@ -118,6 +118,12 @@ svg.fig{display:block;color:var(--text);height:120px;width:auto;max-width:100%;m
 .howbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;font-size:14px;color:#dedbd4;text-align:left;line-height:1.45;max-width:460px;margin:auto}
 .sfig svg.fig{height:124px}.sfig{margin:2px 0}
 .burn .bigclock{color:var(--amber)}
+.effort{display:grid;gap:6px;justify-items:center}.effort .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;max-width:360px}.effort button{min-height:40px;font-size:14px;background:var(--panel)}.effort button.on{background:var(--text);color:var(--bg)}
+.tagchip{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.06em;padding:2px 6px;border-radius:6px;background:var(--panel2);color:var(--muted);margin-right:6px;vertical-align:middle}
+.blockhead{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin:12px 0 2px}
+.ladder{display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}.ladder:last-child{border:0}.ladder .th{width:52px;height:52px;border-radius:12px;background:var(--panel2);display:grid;place-items:center;overflow:hidden}.ladder .th svg{width:46px;height:46px}
+.ladder .rungs{display:flex;gap:3px;margin-top:4px}.ladder .rungs i{width:10px;height:6px;border-radius:2px;background:var(--line);display:inline-block}.ladder .rungs i.on{background:var(--accent)}.ladder .btns{display:flex;gap:6px}.ladder .btns button{min-height:36px;padding:0 10px;font-size:13px}
+.progresscard{background:#13302a;border:1px solid #1f4a3a;border-radius:16px;padding:12px 14px;margin:12px 0}.progresscard .t{color:var(--mint);font-weight:800;letter-spacing:.08em;font-size:12px;text-transform:uppercase}
 input[type=range]{width:160px;accent-color:var(--accent)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 @media (max-height:740px){.exname{font-size:27px}.bigclock{font-size:70px}.ring{width:180px;height:180px}.ring .bigclock{font-size:52px}.sfig svg.fig{height:96px}.stepper .val{font-size:40px}}
@@ -146,9 +152,10 @@ input[type=range]{width:160px;accent-color:var(--accent)}
       <div class="est"><span class="num" id="estimate">≈ 32</span><span class="small muted">min</span></div>
     </div>
     <p class="small muted" id="estimateNote" style="margin:10px 0 0"></p>
+    <div class="progresscard hidden" id="progressCard"></div>
     <button class="primary startbtn" id="startSession">▶ Start guided session</button>
     <div class="toolbar"><button class="ghost" id="editDay">✎ Edit this day</button><button class="ghost hidden" id="resetDay">Reset to default</button></div>
-    <div class="editnote" id="editNote">Editing. Use ↑ ↓ to reorder, ⇄ to swap in a different exercise, ✕ to remove, or the + buttons under each section to add one. Each change asks whether it is for today only or saved to your plan.</div>
+    <div class="editnote" id="editNote">Editing. Use ↑ ↓ to reorder, ⇄ to swap in a different exercise, ✕ to remove, or the + buttons under each section to add one. Each change asks whether it is for today only or saved to your plan. In progressive mode an edited day becomes a plain list (no supersets or timed circuit) until you reset it; ladder sets still apply.</div>
 
     <h3>Warm-up • <span id="warmLen">4 minutes</span></h3>
     <p class="muted small" style="margin:0">Guided in the session: marching, arm circles, easy squats, hip circles, a few easy push-ups. Length is in Settings.</p>
@@ -163,6 +170,12 @@ input[type=range]{width:160px;accent-color:var(--accent)}
 
     <p class="muted small" style="margin-top:14px" id="coolNote">Cool-down is guided at the end of the session. Stop at the time cap even if a set remains.</p>
     <button class="primary" style="width:100%" id="finish">Mark day complete</button>
+  </section>
+
+  <section class="panel" id="laddersPanel">
+    <h2>Your ladders</h2>
+    <p class="small muted" style="margin-top:0">Each movement pattern climbs a ladder of variations. The app moves you up when you earn it, and steps back after two weak sessions. Nudge by hand if a rung feels wrong.</p>
+    <div id="ladders"></div>
   </section>
 
   <section class="panel">
@@ -190,7 +203,7 @@ input[type=range]{width:160px;accent-color:var(--accent)}
     <p class="muted small" id="importNote"></p>
   </section>
 
-  <footer>Data stays in this browser on this device — export a backup periodically. Version 3.0 (schema 3). Your original v1 data is kept untouched under its old storage key. This is a progressive exercise guide, not medical advice.</footer>
+  <footer>Data stays in this browser on this device — export a backup periodically. Version 4.0 (schema 3). Your original v1 data is kept untouched under its old storage key. This is a progressive exercise guide, not medical advice.</footer>
 </main>
 
 <!-- Library picker sheet -->
@@ -214,12 +227,22 @@ input[type=range]{width:160px;accent-color:var(--accent)}
       <h3 style="margin-top:0">Rest</h3>
       <div class="setting"><label for="restWithin">Between sets (strength days)</label><select id="restWithin"></select></div>
       <div class="setting"><label for="restBetween">Between exercises</label><select id="restBetween"></select></div>
-      <div class="setting"><label for="restLight">Light days &amp; core finisher</label><select id="restLight"></select></div>
+      <div class="setting"><label for="restLight">Light days &amp; plain core finisher</label><select id="restLight"></select></div>
+      <div class="setting"><label for="restPair">Inside a superset (A1 → A2)</label><select id="restPair"></select></div>
+      <div class="setting"><label for="restCircuit">Core circuit, between stations</label><select id="restCircuit"></select></div>
+      <div class="setting"><label for="restRound">Core circuit, after a round</label><select id="restRound"></select></div>
       <p class="muted small">Walking and mobility blocks have no automatic rest. The time estimate on each day updates with these settings.</p>
     </section>
     <section class="panel">
+      <h3 style="margin-top:0">Programme</h3>
+      <div class="setting"><label for="mode">Mode</label><select id="mode"><option value="progressive">Progressive (ladders)</option><option value="classic">Classic 8-week plan</option></select></div>
+      <p class="muted small">Progressive: supersets, a core circuit, two timed conditioning days, and exercises that get harder as you earn it; 4-week blocks with a deload. Classic: the fixed v2 programme.</p>
+      <div class="setting"><label for="intervalWork">Timed circuit — work</label><select id="intervalWork"><option value="30">30 s</option><option value="40">40 s</option><option value="45">45 s</option><option value="60">60 s</option></select></div>
+      <div class="setting"><label for="intervalRest">Timed circuit — rest</label><select id="intervalRest"><option value="10">10 s</option><option value="15">15 s</option><option value="20">20 s</option><option value="30">30 s</option></select></div>
+    </section>
+    <section class="panel">
       <h3 style="margin-top:0">Volume &amp; burnout</h3>
-      <div class="setting"><label for="extraSets">Sets per strength exercise</label><select id="extraSets"><option value="0">2 sets</option><option value="1">3 sets</option><option value="2">4 sets</option></select></div>
+      <div class="setting"><label for="extraSets">Sets per strength exercise (classic mode &amp; plain lists)</label><select id="extraSets"><option value="0">2 sets</option><option value="1">3 sets</option><option value="2">4 sets</option></select></div>
       <div class="setting"><span>Timed burnout on the last set</span><button class="switch" role="switch" data-set="burnoutOn" aria-checked="true"></button></div>
       <div class="setting"><label for="burnoutSeconds">Burnout length</label><select id="burnoutSeconds"><option value="30">30 sec</option><option value="40">40 sec</option><option value="45">45 sec</option><option value="60">60 sec</option></select></div>
       <p class="muted small">Burnout: as many clean reps as you can in the time, stopping when technique breaks down — not to absolute failure. Applies to push, leg, hinge and upper-back exercises, not holds or the core finisher.</p>
@@ -284,6 +307,7 @@ input[type=range]{width:160px;accent-color:var(--accent)}
     <div id="phRest" class="stack hidden">
       <div class="label" id="rLabel">Rest</div>
       <div class="ring"><svg viewBox="0 0 120 120" width="100%" height="100%"><circle cx="60" cy="60" r="52" fill="none" stroke="#2a2c34" stroke-width="8"/><circle id="ringArc" cx="60" cy="60" r="52" fill="none" stroke="#34d3c3" stroke-width="8" stroke-linecap="round" stroke-dasharray="326.7" stroke-dashoffset="0"/></svg><div class="bigclock num" id="rClock">00:45</div></div>
+      <div class="effort" id="effortRow"><span class="label">That set was</span><div class="grid3"><button data-effort="e">Easy</button><button data-effort="h">Hard</button><button data-effort="m">Max</button></div></div>
       <div class="exname" id="rNext" style="font-size:24px">Next exercise</div>
       <div class="sfig" id="rFig"></div>
       <div class="target" id="rTarget"></div>
@@ -535,14 +559,16 @@ let editing = false;
 /* ---------------- plan view ---------------- */
 function renderPlan() {
   const p = plan(), S = state.session, settings = state.settings, def = dayDef();
-  $('week').replaceChildren(...Array.from({ length: 8 }, (_, i) => el('option', { value: i + 1, text: `Week ${i + 1}` })));
-  $('week').value = String(state.week);
-  $('phase').textContent = CL.PHASES[state.week - 1].text;
-  $('weekNotes').textContent = CL.PHASES[state.week - 1].text + ' The estimate on each day already includes warm-up, rests and cool-down.';
-  $('days').replaceChildren(...CL.PROGRAM.map((d, i) => el('button', { class: i === state.day ? 'active' : '', role: 'tab', 'aria-selected': i === state.day, onclick: () => changeDay(i) },
+  const prog = state.mode !== 'classic', wi = CL.weekInfo(state.week);
+  $('week').replaceChildren(...Array.from({ length: prog ? CL.MAX_WEEK : 8 }, (_, i) => { const w = CL.weekInfo(i + 1); return el('option', { value: i + 1, text: prog ? `Week ${i + 1} • Block ${w.block}${w.deload ? ' • deload' : ''}` : `Week ${i + 1}` }); }));
+  $('week').value = String(Math.min(state.week, prog ? CL.MAX_WEEK : 8));
+  $('phase').textContent = prog ? `Block ${wi.block}, week ${wi.wk} of 4. ${CL.BLOCK_TEXT[wi.wk - 1]}` : CL.PHASES[state.week - 1].text;
+  $('weekNotes').textContent = (prog ? 'Progressive mode: every set at the top of its range (and not rated Max) earns the next step — one more set, then the next variation on the ladder. Two weak sessions in a row step back. Every fourth week is a deload.' : CL.PHASES[state.week - 1].text) + ' The estimate on each day already includes warm-up, rests and cool-down.';
+  renderProgressCard(); renderLadders();
+  $('days').replaceChildren(...(prog ? CL.TEMPLATE : CL.PROGRAM).map((d, i) => el('button', { class: i === state.day ? 'active' : '', role: 'tab', 'aria-selected': i === state.day, onclick: () => changeDay(i) },
     el('span', { class: 'd', text: d.d }), el('span', { class: 'dot ' + (state.done[`${state.week}-${i}`] ? 'done' : d.k === 'Strength' ? 's' : 'l') }))));
   $('name').textContent = p.n; $('kind').textContent = p.k; $('kind').className = 'tag ' + (p.light ? 'sky' : 'ember'); $('focus').textContent = p.f;
-  $('dayBadges').replaceChildren(...(p.temporary ? [el('span', { class: 'tag warn', text: 'Changed for today only' })] : p.custom ? [el('span', { class: 'tag good', text: 'Customised' })] : []));
+  $('dayBadges').replaceChildren(...[p.temporary ? el('span', { class: 'tag warn', text: 'Changed for today only' }) : p.custom ? el('span', { class: 'tag good', text: 'Customised (plain list)' }) : null, p.deload ? el('span', { class: 'tag sky', text: 'Deload week' }) : null, prog && !p.custom && !p.light ? el('span', { class: 'tag', text: 'Supersets + core circuit' }) : null, prog && p.k === 'Circuit' ? el('span', { class: 'tag', text: `${p.items[0] && p.items[0].sets} rounds • ${state.settings.intervalWork}/${state.settings.intervalRest} s` }) : null].filter(Boolean));
   $('resetDay').classList.toggle('hidden', !editing || !p.custom);
   $('resetDay').textContent = p.temporary ? 'Undo today’s change' : 'Reset to default';
   $('warmLen').textContent = p.warmupSeconds ? `${Math.round(p.warmupSeconds / 60)} minutes` : 'off';
@@ -560,7 +586,7 @@ function renderPlan() {
     const toggle = () => { openCues.has(it.id) ? openCues.delete(it.id) : openCues.add(it.id); row.classList.toggle('open'); };
     const th = el('div', { class: 'th', onclick: toggle }, figThumb(it.id));
     const head = el('div', { onclick: toggle },
-      el('div', { class: 'name', text: it.name }, levelDots(it.level)),
+      el('div', { class: 'name' }, it.tag ? el('span', { class: 'tagchip', text: it.tag }) : null, document.createTextNode(it.name), levelDots(it.level), it.ladder ? el('span', { class: 'small muted', text: ` • rung ${it.rung + 1}/${it.rungCount}` }) : null),
       el('div', { class: 'rx', text: `${it.label}${it.burnout ? ' • last set: ' + it.burnoutSeconds + ' s burnout' : ''} • ${logged.length}/${it.sets} logged` }),
       it.hint ? el('div', { class: 'hint', text: 'This week: ' + it.hint }) : null);
     const n = items.length;
@@ -583,9 +609,12 @@ function renderPlan() {
     if (logged.length) row.append(el('div', { class: 'logged', style: 'grid-column:1/-1', text: 'Logged: ' + logged.map(x => x.reps + (x.unit && x.unit !== 'reps' ? ' ' + x.unit : '') + (x.burnout ? ' 🔥' : '')).join(', ') }));
     return row;
   });
-  $('moves').replaceChildren(...draw(p.items.filter(i => i.section === 'm'), 'm'));
+  const withHeads = (rows, items) => { if (!p.progressive || p.custom) return rows; const out = []; let last = -1; items.forEach((it, i) => { if (it.block !== last) { last = it.block; const txt = it.btype === 'pair' ? `Superset ${it.tag[0]} — alternate, ${state.settings.restPair} s between, ${state.settings.restWithin} s after the pair` : it.btype === 'circuit' ? `Core circuit — ${it.sets} round${it.sets > 1 ? 's' : ''}, ${state.settings.restCircuit} s between stations` : it.btype === 'interval' ? `Timed circuit — ${it.sets} round${it.sets > 1 ? 's' : ''} of ${it.interval.work} s on / ${it.interval.rest} s off, logged automatically` : ''; if (txt) out.push(el('div', { class: 'blockhead', text: txt })); } out.push(rows[i]); }); return out; };
+  const mains = p.items.filter(i => i.section === 'm');
+  $('moves').replaceChildren(...withHeads(draw(mains, 'm'), mains));
   const core = p.items.filter(i => i.section === 'c');
-  $('core').replaceChildren(...draw(core, 'c')); $('coreTitle').classList.toggle('hidden', !core.length && !editing);
+  $('core').replaceChildren(...withHeads(draw(core, 'c'), core)); $('coreTitle').classList.toggle('hidden', !core.length && !editing);
+  $('coreTitle').textContent = p.progressive && !p.custom ? 'Core circuit' : 'Core finisher';
   $('addMain').disabled = def.m.length >= CL.MAX_MAIN; $('addCore').disabled = def.c.length >= CL.MAX_CORE;
   // Preserved logs for exercises no longer on this day (programme changed) — never hidden.
   const known = new Set(p.items.map(i => i.logKey)), prefix = `${state.week}-${state.day}-`;
@@ -601,6 +630,22 @@ function renderPlan() {
   $('history').replaceChildren(...(hist.length ? hist.map(h => { const [w, d] = h.key.split('-'); const dt = new Date(h.startedAt); return el('div', { text: `${dt.toLocaleDateString()} • Week ${w} ${CL.PROGRAM[+d].d} • ${h.setsLogged} sets • ${CL.fmt((h.endedAt - h.startedAt) / 1000)}${h.completed ? ' • ✓' : ''}` }); }) : [el('div', { text: 'No guided sessions yet.' })]));
 }
 
+function renderProgressCard() {
+  const lc = state.lastChanges, box = $('progressCard');
+  if (!lc || state.mode === 'classic') { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  box.replaceChildren(el('div', { class: 't', text: 'Progress earned' }), ...lc.changes.map(c => el('div', { class: 'small', style: 'margin-top:4px', text: (c.type === 'up' ? '⬆︎ ' : c.type === 'down' || c.type === 'fewer' ? '⬇︎ ' : c.type === 'set' ? '＋ ' : '★ ') + c.text })),
+    el('div', { class: 'grid2', style: 'margin-top:10px' }, el('button', { class: 'ghost', text: 'Undo', onclick: () => { CL.undoLastChanges(state); save(); renderPlan(); toast('Progression undone'); } }), el('button', { text: 'OK', onclick: () => { state.lastChanges = null; save(); renderPlan(); } })));
+}
+function renderLadders() {
+  const wrap = $('ladders'); if (state.mode === 'classic') { $('laddersPanel').classList.add('hidden'); return; } $('laddersPanel').classList.remove('hidden');
+  wrap.replaceChildren(...CL.LADDER_ORDER.map(l => {
+    const L = CL.LADDERS[l], ls = CL.ladderState(state, l), id = L.ids[ls.rung], ex = CL.EX[id];
+    return el('div', { class: 'ladder', style: `--gc:${GC[ex.group]}` }, el('div', { class: 'th' }, figThumb(id)),
+      el('div', null, el('div', { class: 'small muted', text: L.name }), el('div', { style: 'font-weight:700', text: `${ex.name} • ${ls.sets} sets` }), el('div', { class: 'rungs' }, ...L.ids.map((_, i) => el('i', { class: i <= ls.rung ? 'on' : '', title: CL.EX[L.ids[i]].name })))),
+      el('div', { class: 'btns' }, el('button', { class: 'ghost', text: 'Easier', disabled: ls.rung === 0, onclick: () => { if (sessionBlocksEdit()) return; CL.adjustLadder(state, l, -1); save(); renderPlan(); } }), el('button', { class: 'ghost', text: 'Harder', disabled: ls.rung >= L.ids.length - 1, onclick: () => { if (sessionBlocksEdit()) return; CL.adjustLadder(state, l, +1); save(); renderPlan(); } })));
+  }));
+}
 function changeDay(i) { if (i === state.day) return; if (!confirmLeaveSession()) return; state.day = i; editing = false; save(); renderPlan(); }
 function confirmLeaveSession() {
   if (!state.session) return true;
@@ -615,7 +660,7 @@ function addSet(item, n) { state.sets[item.logKey] ||= []; if (state.sets[item.l
 function removeLastSet(key) { if (state.sets[key]?.length) { state.sets[key].pop(); if (!state.sets[key].length) delete state.sets[key]; save(); } }
 
 /* ---------------- programme editing ---------------- */
-function sessionBlocksEdit() { const s = state.session; if (s && s.key === sessionKey()) { toast('End the guided session before changing this day.'); return true; } return false; }
+function sessionBlocksEdit() { const s = state.session; if (s) { toast('End the guided session before changing the plan.'); return true; } return false; }
 $('editDay').onclick = () => { if (!editing && sessionBlocksEdit()) return; editing = !editing; renderPlan(); };
 $('resetDay').onclick = () => {
   if (sessionBlocksEdit()) return; const p = plan();
@@ -701,7 +746,8 @@ $('file').onchange = async e => {
 /* ---------------- settings ---------------- */
 function fillRest(id, vals) { $(id).replaceChildren(...vals.map(v => el('option', { value: v, text: v === 0 ? 'none' : v + ' sec' }))); }
 fillRest('restWithin', [20, 30, 45, 60, 75, 90, 120]); fillRest('restBetween', [30, 45, 60, 75, 90, 120, 150]); fillRest('restLight', [0, 15, 20, 30, 45, 60]);
-const NUM_SETTINGS = ['restWithin', 'restBetween', 'restLight', 'capMinutes', 'warnMinutes', 'extraSets', 'burnoutSeconds', 'warmupSeconds', 'cooldownSeconds'];
+fillRest('restPair', [0, 10, 15, 20, 30, 45]); fillRest('restCircuit', [0, 10, 15, 20, 30]); fillRest('restRound', [20, 30, 45, 60, 90]);
+const NUM_SETTINGS = ['restWithin', 'restBetween', 'restLight', 'restPair', 'restCircuit', 'restRound', 'intervalWork', 'intervalRest', 'capMinutes', 'warnMinutes', 'extraSets', 'burnoutSeconds', 'warmupSeconds', 'cooldownSeconds'];
 function renderVoices() {
   const sel = $('voiceURI'), list = Snd.voices(), cur = state.settings.voiceURI;
   sel.replaceChildren(el('option', { value: '', text: list.length ? 'Automatic (best available)' : 'No voices reported yet' }), ...list.map(v => el('option', { value: v.voiceURI, text: `${v.name} (${v.lang})${/premium|enhanced/i.test(v.name) ? ' ★' : ''}` })));
@@ -710,13 +756,14 @@ function renderVoices() {
 function renderSettings() {
   const s = state.settings;
   NUM_SETTINGS.forEach(k => { $(k).value = String(s[k]); });
-  $('cueLevel').value = s.cueLevel; $('coachVoice').value = s.coachVoice; $('audioMix').value = s.audioMix; $('voiceRate').value = String(s.voiceRate); $('voiceRateVal').textContent = `${s.voiceRate.toFixed(2)}×`;
+  $('cueLevel').value = s.cueLevel; $('coachVoice').value = s.coachVoice; $('audioMix').value = s.audioMix; $('mode').value = state.mode; $('voiceRate').value = String(s.voiceRate); $('voiceRateVal').textContent = `${s.voiceRate.toFixed(2)}×`;
   $('coachNote').textContent = (Coach.clips ? 'Recorded coach: a real voice, pre-recorded for every cue, exercise and quote (about 12 MB, downloaded once and kept for offline use). ' : 'Recorded coach clips are not available right now (offline before the first download?) — the device voice is used until they are. ') + 'Device voice: the phone’s own text-to-speech.';
   renderVoices();
   document.querySelectorAll('.switch').forEach(b => b.setAttribute('aria-checked', String(!!s[b.dataset.set])));
 }
 NUM_SETTINGS.forEach(k => { $(k).onchange = e => { state.settings[k] = Number(e.target.value); if (state.settings.warnMinutes >= state.settings.capMinutes) state.settings.warnMinutes = state.settings.capMinutes - 5; save(); renderSettings(); renderPlan(); }; });
 $('cueLevel').onchange = e => { state.settings.cueLevel = e.target.value; save(); };
+$('mode').onchange = e => { if (state.session) { toast('End the guided session first'); $('mode').value = state.mode; return; } state.mode = e.target.value === 'classic' ? 'classic' : 'progressive'; if (state.mode === 'classic' && state.week > 8) state.week = 8; save(); renderSettings(); renderPlan(); };
 $('audioMix').onchange = e => { state.settings.audioMix = e.target.value; save(); Coach.applySession(); Snd.unlock(); Coach.say('test', { urgent: true, force: true }); };
 $('coachVoice').onchange = e => { state.settings.coachVoice = e.target.value; save(); Snd.unlock(); Coach.say('test', { urgent: true, force: true }); };
 $('voiceURI').onchange = e => { state.settings.voiceURI = e.target.value; save(); Snd.unlock(); Snd.speak('This is the device voice. Rest forty-five seconds, then bodyweight squats.', { urgent: true }); };
@@ -746,6 +793,7 @@ $('startSession').onclick = () => {
     save();
     const pos = CL.sessionPosition(p, state.sets, {});
     const dayClip = { id: `day_${state.day}`, text: `${p.n}. Let's go.` };
+    if (p.deload) Coach.say('deload_week', { urgent: true });
     if (p.warmupSeconds) { const steps = p.light ? CL.WARMUP_STEPS_LIGHT : CL.WARMUP_STEPS; Coach.say([dayClip, 'warm_start', { id: p.light ? 'warml_0' : 'warm_0', text: steps[0] + '.' }], { urgent: true }); if (state.settings.quotesOn) { const q = Coach.quote(0); if (q) Coach.say(q); } }
     else Coach.say(pos.current ? [dayClip, 'lets_go', ...sayQ(pos.current)] : ['nothing'], { urgent: true });
   }
@@ -774,6 +822,7 @@ function phase() {
   }
   if (s.restUntil) return t < s.restUntil ? 'rest' : 'restover';
   if (s.burnUntil) return t < s.burnUntil ? 'burnout' : 'burnover';
+  if (s.workUntil) return t < s.workUntil ? 'interval' : 'intervalover';
   return 'work';
 }
 function setFig(slot, elId, exId, name) { if (figKey[slot] === exId) return; figKey[slot] = exId; if (exId) $(elId).replaceChildren(slot === 'n' ? figThumb(exId) : figStrip(exId, name, false)); else $(elId).replaceChildren(); }
@@ -790,17 +839,22 @@ function tick() {
   let ph = phase();
   if (ph === 'restover') { finishRest(); ph = 'work'; }
   if (ph === 'burnover') { finishBurn(); ph = 'work'; }
+  if (ph === 'intervalover') { finishInterval(); ph = phase(); if (ph === 'restover') { finishRest(); ph = phase(); } }
   const pos = CL.sessionPosition(p, state.sets, s.skipped);
   const n = pos.index + 1;
   $('sStep').textContent = ph === 'warmup' ? 'Warm-up' : ph === 'cooldown' ? 'Cool-down' : pos.done ? `${pos.total} / ${pos.total} sets` : `Set ${n} / ${pos.total}`;
-  $('session').className = 'show ' + ({ rest: 'rest', paused: 'paused', done: 'complete', burnout: 'burn', warmup: 'warm', cooldown: 'cool' }[ph] || '');
-  const timerPhase = ph === 'warmup' || ph === 'cooldown' || ph === 'burnout';
+  $('session').className = 'show ' + ({ rest: 'rest', paused: 'paused', done: 'complete', burnout: 'burn', warmup: 'warm', cooldown: 'cool', interval: 'burn' }[ph] || '');
+  const timerPhase = ph === 'warmup' || ph === 'cooldown' || ph === 'burnout' || ph === 'interval';
   const burnPending = ph === 'work' && !!pos.current && pos.current.burnout && !s.burnReady;
+  const intervalPending = ph === 'work' && !!pos.current && pos.current.timed;   // a timed station waiting for "Start"
   show('phWork', ph === 'work'); show('phRest', ph === 'rest'); show('phPaused', ph === 'paused'); show('phDone', ph === 'done'); show('phTimer', timerPhase);
-  show('logSet', ph === 'work' && !burnPending); show('burnStart', burnPending); show('skipRest', ph === 'rest'); show('resumeBtn', ph === 'paused'); show('doneBtn', ph === 'done'); show('timerSkip', ph === 'warmup' || ph === 'cooldown');
+  show('logSet', ph === 'work' && !burnPending && !intervalPending); show('burnStart', burnPending || intervalPending); show('skipRest', ph === 'rest'); show('resumeBtn', ph === 'paused'); show('doneBtn', ph === 'done'); show('timerSkip', ph === 'warmup' || ph === 'cooldown');
   show('secWork', ph === 'work'); show('secBurn', burnPending); show('secRest', ph === 'rest'); show('secDone', ph === 'done'); show('secTimer', timerPhase);
+  show('effortRow', ph === 'rest' && !!lastSessionSet() && !lastSessionAuto());
+  $('burnStart').textContent = intervalPending ? (pos.current.round === 1 && pos.index === firstTimedIndex(pos) ? '▶ Start circuit' : '▶ Start station') : '🔥 Start burnout timer';
   $('timerSkip').textContent = ph === 'warmup' ? 'Skip warm-up' : 'Finish cool-down';
-  $('timerStop').classList.toggle('hidden', ph !== 'burnout'); $('timerMinus').classList.toggle('hidden', ph === 'burnout'); $('timerPlus').classList.toggle('hidden', ph === 'burnout');
+  $('timerStop').classList.toggle('hidden', ph !== 'burnout' && ph !== 'interval'); $('timerMinus').classList.toggle('hidden', ph === 'burnout' || ph === 'interval'); $('timerPlus').classList.toggle('hidden', ph === 'burnout' || ph === 'interval');
+  $('timerStop').textContent = ph === 'interval' ? 'Stop early' : 'Stop early';
   $('pauseBtn').classList.toggle('hidden', ph === 'done' || ph === 'paused');
   $('undoSet').disabled = $('undoSetR').disabled = !lastSessionSet();
 
@@ -812,36 +866,45 @@ function tick() {
       // Entering a fresh set from rest/warm-up: say the form cue on set 1 (light) or every set (full).
       if (fresh && lastPhase !== 'work' && lastPhase !== 'paused' && lastPhase !== 'burnout') {
         const lvl = state.settings.cueLevel;
-        if (lvl !== 'off' && (pos.current.setNo === 1 || lvl === 'full') && !pos.current.burnout) Coach.say({ id: `cue_${it.id}`, text: it.cue });
+        if (lvl !== 'off' && (pos.current.setNo === 1 || lvl === 'full') && !pos.current.burnout && !pos.current.timed) Coach.say({ id: `cue_${it.id}`, text: it.cue });
       }
     }
-    if (burnPending) { $('wSet').textContent = `Set ${pos.current.setNo} of ${it.sets} • burnout`; $('wTarget').textContent = `${it.burnoutSeconds} seconds — as many clean reps as you can`; }
-    else { $('wSet').textContent = s.burnReady ? 'Burnout done • log your reps' : `Set ${pos.current.setNo} of ${it.sets}`; $('wTarget').textContent = targetText(it); }
+    const tagTxt = it.tag ? (it.btype === 'pair' ? `Superset ${it.tag} • ` : `Circuit ${it.tag} • `) : '';
+    if (burnPending) { $('wSet').textContent = `${tagTxt}Set ${pos.current.setNo} of ${it.sets} • burnout`; $('wTarget').textContent = `${it.burnoutSeconds} seconds — as many clean reps as you can`; }
+    else if (intervalPending) { $('wSet').textContent = `Round ${pos.current.round} of ${it.sets}`; $('wTarget').textContent = `${it.interval.work} s on, ${it.interval.rest} s off — steady, clean reps`; }
+    else { $('wSet').textContent = s.burnReady ? 'Burnout done • log your reps' : `${tagTxt}${it.btype === 'circuit' ? 'Round' : 'Set'} ${pos.current.setNo} of ${it.sets}`; $('wTarget').textContent = targetText(it); }
+    $('phWork').querySelector('.stepper').classList.toggle('hidden', intervalPending);
     $('wName').textContent = it.name; $('wCue').textContent = it.cue; $('wHow').textContent = it.how; setFig('w', 'wFig', it.id, it.name);
     $('wHint').textContent = it.hint ? 'This week: ' + it.hint : ''; $('wHint').classList.toggle('hidden', !it.hint);
     $('repVal').textContent = repDraft; $('repUnit').textContent = it.unit === 'reps' ? (it.perSide ? 'reps per side' : 'reps done') : it.unit === 'sec' ? (it.perSide ? 'sec per side' : 'seconds held') : 'minutes';
-    $('wNextText').textContent = pos.next ? (pos.next.item.logKey === it.logKey ? `Then: ${it.name}, set ${pos.next.setNo}${pos.next.burnout ? ' (burnout)' : ''}` : `Up next: ${pos.next.item.name} (${pos.next.item.label})`) : 'Last set of the session';
+    $('wNextText').textContent = pos.next ? (pos.next.item.logKey === it.logKey ? `Then: ${it.name}, ${it.btype === 'circuit' || it.kind === 'interval' ? 'round' : 'set'} ${pos.next.setNo}${pos.next.burnout ? ' (burnout)' : ''}` : `${pos.next.item.block === it.block && it.btype === 'pair' ? 'Superset → ' : 'Up next: '}${pos.next.item.name}${pos.next.item.tag ? ' (' + pos.next.item.tag + ')' : ''}`) : 'Last set of the session';
     setFig('n', 'wNextFig', pos.next ? pos.next.item.id : '', '');
     if (state.settings.cueLevel === 'full' && !coachSaid && !burnPending && !s.burnReady && it.kind === 'reps' && t - workStartedAt > 25000) { coachSaid = true; const i = coachIdx++ % CL.COACH_LINES.length; Coach.say({ id: `coach_${i}`, text: CL.COACH_LINES[i] }); }
   } else if (ph === 'rest') {
     const left = CL.secondsLeft(s.restUntil, t), nxt = pos.current;
     $('rClock').textContent = CL.fmt(left);
     $('ringArc').setAttribute('stroke-dashoffset', String(326.7 * (1 - Math.min(1, left / Math.max(1, s.restTotal)))));
-    $('rLabel').textContent = s.restKind === 'between' ? 'Rest • next exercise' : 'Rest • up next';
+    $('rLabel').textContent = ({ between: 'Rest • next exercise', pair: 'Superset • straight on to', circuit: 'Circuit • next station', round: 'Round done • rest', interval: 'Rest • next station' })[s.restKind] || 'Rest • up next';
     if (nxt) { $('rNext').textContent = `${nxt.item.name} • set ${nxt.setNo} of ${nxt.item.sets}${nxt.burnout ? ' • 🔥 burnout' : ''}`; $('rTarget').textContent = nxt.burnout ? `${nxt.item.burnoutSeconds} s, as many clean reps as you can` : targetText(nxt.item); $('rCue').textContent = nxt.item.cue; setFig('r', 'rFig', nxt.item.id, nxt.item.name); }
     // A motivational line once per rest, a few seconds in, only if it fits before the 10-second "Next up" call.
     if (!quoteSaid && state.settings.quotesOn && s.restTotal >= 30 && s.restTotal - left >= 4 && left > 14) { quoteSaid = true; const q = Coach.quote(left - 13); if (q) Coach.say(q); }
+    renderEffort();
     if (!announcedNext && nxt && left <= 10) { announcedNext = true; Coach.say([nextClip(nxt.item), nxt.item.sets > 1 ? setClip(nxt.setNo) : null, nxt.burnout ? 'then_burn' : null], { urgent: true }); }
     if (state.settings.countdownOn && left <= 3 && left >= 1 && !cdFired[left]) { cdFired[left] = true; Snd.cue('tick'); }
   } else if (timerPhase) {
-    const until = ph === 'warmup' ? s.warmUntil : ph === 'cooldown' ? s.coolUntil : s.burnUntil;
-    const total = ph === 'warmup' ? s.warmTotal : ph === 'cooldown' ? s.coolTotal : s.burnTotal;
+    const until = ph === 'warmup' ? s.warmUntil : ph === 'cooldown' ? s.coolUntil : ph === 'interval' ? s.workUntil : s.burnUntil;
+    const total = ph === 'warmup' ? s.warmTotal : ph === 'cooldown' ? s.coolTotal : ph === 'interval' ? s.workTotal : s.burnTotal;
     const left = CL.secondsLeft(until, t);
     $('tClock').textContent = CL.fmt(left);
     $('tArc').setAttribute('stroke-dashoffset', String(326.7 * (1 - Math.min(1, left / Math.max(1, total)))));
     $('tArc').setAttribute('stroke', ph === 'burnout' ? '#ffb020' : ph === 'warmup' ? '#ffb020' : '#4cb8ff');
-    $('tFig').classList.toggle('hidden', ph !== 'burnout');
-    if (ph === 'burnout') {
+    $('tFig').classList.toggle('hidden', ph !== 'burnout' && ph !== 'interval');
+    if (ph === 'interval' && pos.current) {
+      const it = pos.current.item;
+      $('tLabel').textContent = `Work • round ${pos.current.round} of ${it.sets}`; $('tName').textContent = it.name; $('tStep').textContent = pos.next ? (pos.next.item.logKey === it.logKey ? 'Last station of the round' : `Then: ${pos.next.item.name}`) : 'Last station'; $('tCue').textContent = it.cue; setFig('t', 'tFig', it.id, it.name);
+      if (!burnSaid.ten && left <= 10 && left > 3 && total >= 30) { burnSaid.ten = true; Coach.say('burn_ten'); }
+      if (state.settings.countdownOn && left <= 3 && left >= 1 && !cdFired[left]) { cdFired[left] = true; Snd.cue('tick'); }
+    } else if (ph === 'burnout') {
       const it = pos.current.item;
       $('tLabel').textContent = '🔥 Burnout set'; $('tName').textContent = it.name; $('tStep').textContent = 'As many clean reps as you can. Stop when form breaks.'; $('tCue').textContent = it.cue; setFig('t', 'tFig', it.id, it.name);
       const half = Math.round(total / 2);
@@ -887,26 +950,61 @@ function logCurrent() {
   Snd.cue('logged'); Snd.vibrate(40);
   const after = CL.sessionPosition(p, state.sets, s.skipped);
   if (after.done) { s.restUntil = 0; save(); tick(); return; }
-  const between = after.current.item.logKey !== it.logKey;
-  beginRest(CL.restFor(it, between, p.light, state.settings), between ? 'between' : 'within', after.current);
+  beginRest(CL.restAfter(pos.current, after.current, p, state.settings), restKindFor(pos.current, after.current), after.current);
+}
+function restKindFor(cur, nxt) {
+  const a = cur.item, b = nxt.item;
+  if (a.kind === 'interval') return 'interval';
+  if (a.block === b.block && a.btype === 'pair') return b.logKey !== a.logKey && nxt.round === cur.round ? 'pair' : 'within';
+  if (a.block === b.block && a.btype === 'circuit') return nxt.round === cur.round ? 'circuit' : 'round';
+  return a.logKey === b.logKey ? 'within' : 'between';
+}
+function firstTimedIndex(pos) { return pos.queue.findIndex(q => q.timed); }
+function lastSessionAuto() { const l = lastSessionSet(); if (!l) return false; const arr = state.sets[l.key]; const e = arr && arr[arr.length - 1]; return !!(e && e.auto); }
+/* Timed stations (conditioning circuits): a work timer that logs itself, then the fixed rest. */
+function startInterval() {
+  const s = S(); const pos = CL.sessionPosition(plan(), state.sets, s.skipped); if (!pos.current || !pos.current.timed) return;
+  const it = pos.current.item; s.workUntil = now() + it.interval.work * 1000; s.workTotal = it.interval.work; save();
+  cdFired = {}; burnSaid = {}; Snd.cue('go');
+  const first = pos.index === firstTimedIndex(pos) && pos.current.round === 1;
+  Coach.say([first ? 'circuit_start' : null, pos.current.round > 1 && pos.index === firstTimedIndex(pos) + (pos.current.round - 1) * stationsIn(pos) ? { id: `round_${Math.min(pos.current.round, 6)}`, text: `Round ${pos.current.round}.` } : null, exClip(it), first ? null : 'work'], { urgent: true });
+  tick();
+}
+function stationsIn(pos) { const it = pos.current.item; return pos.queue.filter(q => q.item.block === it.block && q.round === 1).length; }
+function finishInterval() {
+  const s = S(); const p = plan(), pos = CL.sessionPosition(p, state.sets, s.skipped);
+  const secs = s.workTotal; s.workUntil = 0; s.workTotal = 0;
+  if (pos.current && pos.current.timed) {
+    const it = pos.current.item;
+    state.sets[it.logKey] ||= []; if (state.sets[it.logKey].length < 50) state.sets[it.logKey].push({ reps: secs, at: new Date().toISOString(), unit: 'sec', auto: true });
+  }
+  save(); Snd.cue('go'); Snd.vibrate([150, 80, 150]);
+  const after = CL.sessionPosition(p, state.sets, s.skipped);
+  if (after.done) { tick(); return; }
+  const dur = CL.restAfter(pos.current, after.current, p, state.settings);
+  const nxt = after.current;
+  if (dur <= 0) { Coach.say([nextClip(nxt.item)], { urgent: true }); if (nxt.timed) startInterval(); return; }
+  s.restUntil = now() + dur * 1000; s.restTotal = dur; s.restKind = restKindFor(pos.current, nxt); cdFired = {}; announcedNext = true; quoteSaid = true; save();
+  Coach.say([{ id: 'rest_short', text: 'Rest.' }, nextClip(nxt.item)], { urgent: true });
 }
 $('logSet').onclick = () => { if (!guard()) return; const s = S(); if (!s || s.pausedAt) return; Snd.unlock(); logCurrent(); };
 $('burnLogInstead').onclick = () => { if (!guard()) return; const s = S(); if (!s) return; s.burnReady = true; save(); tick(); };
 $('burnStart').onclick = () => {
   if (!guard()) return; const s = S(); if (!s || s.pausedAt) return; Snd.unlock();
   const pos = CL.sessionPosition(plan(), state.sets, s.skipped); if (!pos.current) return;
+  if (pos.current.timed) { startInterval(); return; }
   const secs = pos.current.item.burnoutSeconds; s.burnUntil = now() + secs * 1000; s.burnTotal = secs; s.burnReady = false; save();
   cdFired = {}; burnSaid = {}; Snd.cue('go');
   Coach.say([exClip(pos.current.item), 'burn_intro'], { urgent: true });
   tick();
 };
 function finishBurn() { const s = S(); s.burnUntil = 0; s.burnReady = true; save(); Snd.cue('go'); Snd.vibrate([150, 80, 150]); Coach.say('burn_stop', { urgent: true }); }
-$('timerStop').onclick = () => { if (!guard()) return; const s = S(); if (!s || !s.burnUntil) return; finishBurn(); tick(); };
+$('timerStop').onclick = () => { if (!guard()) return; const s = S(); if (!s) return; if (s.workUntil) { s.workTotal = Math.max(1, Math.round((s.workTotal * 1000 - (s.workUntil - now())) / 1000)); s.workUntil = now() - 1; tick(); return; } if (!s.burnUntil) return; finishBurn(); tick(); };
 function beginRest(dur, kind, nextQ) {
   const s = S(); cdFired = {}; announcedNext = false; quoteSaid = false;
   if (dur <= 0) { s.restUntil = 0; save(); Coach.say([nextClip(nextQ.item), nextQ.item.sets > 1 ? setClip(nextQ.setNo) : null], { urgent: true }); tick(); return; }
   s.restUntil = now() + dur * 1000; s.restTotal = dur; s.restKind = kind; save();
-  Coach.say(['logged', restClip(dur), kind === 'between' ? nextClip(nextQ.item) : null], { urgent: true });
+  Coach.say(['logged', kind === 'pair' ? { id: 'superset', text: 'Superset. Straight into the next one.' } : restClip(dur), kind === 'between' || kind === 'pair' || kind === 'circuit' || kind === 'round' ? nextClip(nextQ.item) : null], { urgent: true });
   if (dur <= 10) announcedNext = true;
   tick();
 }
@@ -914,6 +1012,7 @@ function finishRest() {
   const s = S(); s.restUntil = 0; save();
   const pos = CL.sessionPosition(plan(), state.sets, s.skipped);
   Snd.cue('go'); Snd.vibrate([150, 80, 150]);
+  if (pos.current && pos.current.timed) { startInterval(); return; }
   if (pos.current) Coach.say(['go', exClip(pos.current.item), pos.current.burnout ? 'burn_ready' : null], { urgent: true });
 }
 function finishWarmup() {
@@ -932,7 +1031,7 @@ $('restNow').onclick = () => { if (!guard()) return; const s = S(); if (!s) retu
 $('skipSet').onclick = () => {
   if (!guard()) return; const s = S(); if (!s) return;
   const p = plan(), pos = CL.sessionPosition(p, state.sets, s.skipped); if (!pos.current) return;
-  s.skipped[pos.current.item.logKey] = (s.skipped[pos.current.item.logKey] || 0) + 1; s.restUntil = 0; s.burnUntil = 0; s.burnReady = false; save();
+  s.skipped[pos.current.item.logKey] = (s.skipped[pos.current.item.logKey] || 0) + 1; s.restUntil = 0; s.burnUntil = 0; s.workUntil = 0; s.burnReady = false; save();
   const after = CL.sessionPosition(p, state.sets, s.skipped);
   if (after.current) Coach.say(['skipped', ...sayQ(after.current)], { urgent: true });
   tick();
@@ -940,11 +1039,13 @@ $('skipSet').onclick = () => {
 function undo() {
   if (!guard()) return; const s = S(); if (!s) return;
   const last = lastSessionSet(); if (!last) return toast('Nothing to undo in this session');
-  removeLastSet(last.key); s.restUntil = 0; s.burnUntil = 0; s.burnReady = false; s.coolUntil = 0; s.coolDone = !plan().cooldownSeconds; save(); Coach.say('undone', { urgent: true }); toast('Last set removed'); tick();
+  removeLastSet(last.key); s.restUntil = 0; s.burnUntil = 0; s.workUntil = 0; s.burnReady = false; s.coolUntil = 0; s.coolDone = !plan().cooldownSeconds; save(); Coach.say('undone', { urgent: true }); toast('Last set removed'); tick();
 }
 $('undoSet').onclick = undo; $('undoSetR').onclick = undo;
+document.querySelectorAll('#effortRow button').forEach(b => b.onclick = () => { const l = lastSessionSet(); if (!l) return; const arr = state.sets[l.key]; const e = arr[arr.length - 1]; e.effort = b.dataset.effort; save(); renderEffort(); });
+function renderEffort() { const l = lastSessionSet(); const arr = l && state.sets[l.key]; const e = arr && arr[arr.length - 1]; document.querySelectorAll('#effortRow button').forEach(b => b.classList.toggle('on', !!(e && e.effort === b.dataset.effort))); }
 $('pauseBtn').onclick = () => { const s = S(); if (!s || s.pausedAt) return; s.pausedAt = now(); save(); Coach.stop(); tick(); };
-$('resumeBtn').onclick = () => { const s = S(); if (!s || !s.pausedAt) return; const d = now() - s.pausedAt; s.pausedTotal += d; for (const k of ['restUntil', 'burnUntil', 'warmUntil', 'coolUntil']) if (s[k]) s[k] += d; s.pausedAt = 0; save(); Snd.unlock(); Coach.say('resume', { urgent: true }); tick(); };
+$('resumeBtn').onclick = () => { const s = S(); if (!s || !s.pausedAt) return; const d = now() - s.pausedAt; s.pausedTotal += d; for (const k of ['restUntil', 'burnUntil', 'warmUntil', 'coolUntil', 'workUntil']) if (s[k]) s[k] += d; s.pausedAt = 0; save(); Snd.unlock(); Coach.say('resume', { urgent: true }); tick(); };
 $('endSession').onclick = () => { const s = S(); if (!s) return closeSession(); const pos = CL.sessionPosition(plan(), state.sets, s.skipped); if (!pos.done && !confirm('End this session? Logged sets are kept.')) return; endSession(false); closeSession(); };
 $('doneBtn').onclick = () => { endSession(true); closeSession(); };
 $('finishNoMark').onclick = () => { endSession(false); closeSession(); };
@@ -954,7 +1055,9 @@ function endSession(markDone) {
   state.history.push({ key: s.key, startedAt: s.startedAt, endedAt: s.startedAt + CL.elapsedMs(s, t), setsLogged: sessionSetCount(), completed: !!markDone || !!state.done[s.key] });
   if (state.history.length > 200) state.history = state.history.slice(-200);
   if (markDone) state.done[s.key] = true;
+  const changes = CL.evaluateSession(state, plan(), s.startedAt, t);
   state.session = null; save(); Coach.stop(); $('capBanner').className = 'banner';
+  if (changes.length) { const up = changes.some(c => c.type === 'up'), down = changes.some(c => c.type === 'down' || c.type === 'fewer'); Coach.say(up ? 'progress_up' : down ? 'progress_down' : changes.some(c => c.type === 'set') ? 'progress_set' : null, { force: true }); toast(changes.length === 1 ? changes[0].text : `${changes.length} progressions earned — see Progress on the plan.`); }
 }
 
 function banner(text, bad) { const b = $('capBanner'); b.textContent = text; b.className = 'banner show' + (bad ? ' bad' : ''); }
@@ -971,7 +1074,7 @@ if (S()) {
   openSession(); toast('Session restored — tap Resume to continue or End to finish.');
 }
 if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !/nosw/.test(location.search)) { navigator.serviceWorker.register('sw.js').catch(() => {}); }
-window.__cl = { get state() { return state; }, tick, plan, renderPlan, Coach, get editing() { return editing; } }; // test hook (read-only use)
+window.__cl = { get state() { return state; }, tick, plan, renderPlan, Coach, get editing() { return editing; }, __pos() { const s = S(); return CL.sessionPosition(plan(), state.sets, s ? s.skipped : {}); } }; // test hook (read-only use)
 })();
 </script>
 </body>

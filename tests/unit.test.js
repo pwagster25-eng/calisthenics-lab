@@ -123,7 +123,7 @@ test('v1 storage/backups migrate positionally to stable ids and keep every entry
   assert.deepEqual(state.sets['3-1-brisk-walking'].map(x => x.reps), [15]);
   assert.equal(Object.values(state.sets).flat().length, 5, 'every set survives');
   assert.deepEqual(state.done, { '1-0': true, '2-5': true });
-  assert.deepEqual(state.prs, { 1: 22 });
+  assert.deepEqual(state.prs, { 1: 22, 9: 5 }); // weeks run to 52 since v4
   assert.equal(state.week, 3); assert.equal(state.day, 1);
   assert.equal(state.settings.restWithin, 90); assert.equal(state.settings.soundOn, false); assert.equal(state.settings.voiceOn, false);
   assert.equal(state.schemaVersion, CL.SCHEMA_VERSION);
@@ -152,7 +152,7 @@ test('import validation: rejects garbage, strips injection payloads, bounds numb
   assert.deepEqual(r.state.sets, { '1-0-standard-push-ups': [{ reps: 12, at: '2026-10-01T00:00:00.000Z' }], '1-0-m-0-extra': [{ reps: 3 }] }, 'well-formed unknown ids are kept; malformed keys and bad entries are dropped');
   assert.deepEqual(r.state.done, { '1-0': true });
   assert.deepEqual(r.state.prs, { 1: 99 });
-  assert.equal(r.state.week, 8); assert.equal(r.state.day, 0);
+  assert.equal(r.state.week, CL.MAX_WEEK); assert.equal(r.state.day, 0);
   assert.equal(r.state.settings.restWithin, CL.DEFAULT_SETTINGS.restWithin);
   assert.equal(r.state.settings.soundOn, true);
   assert.equal(r.state.session, null); assert.deepEqual(r.state.history, []);
@@ -239,7 +239,7 @@ test('v3 editing: swap/add/remove/move are validated and never corrupt a day', (
 });
 
 test('v3 editing: today-only swaps expire at midnight, permanent edits persist, and both coexist sensibly', () => {
-  const st = CL.emptyState();
+  const st = CL.emptyState(); st.mode = 'classic'; // classic fixed programme; progressive days are covered by the v4 tests
   assert.ok(CL.applyEdit(st, 0, { type: 'swap', section: 'm', index: 0, id: 'archer-push-ups' }, 'today', '2026-10-25').ok);
   assert.equal(CL.resolveDay(st, 0, '2026-10-25').m[0], 'archer-push-ups');
   assert.equal(CL.resolveDay(st, 0, '2026-10-25').temporary, true);
@@ -299,4 +299,90 @@ test('v3 coach: the recorded clip catalogue covers every exercise, cue, quote, r
   for (const q of CL.QUOTES) assert.ok(!/[—–-]\s*[A-Z][a-z]+\s+[A-Z][a-z]+\s*$/.test(q), 'attribution in quote: ' + q);
   const longest = Math.max(...CL.QUOTES.map((_, i) => clips[`q_${i}`].d));
   assert.ok(longest < 30, 'quotes are selected by duration at runtime; longest is ' + longest);
+});
+
+/* ---------------- v4: progressive programme ---------------- */
+test('v4 ladders & template: every ladder id exists, no exercise repeats within a day, supersets interleave, rounds grow by block', () => {
+  for (const l of CL.LADDER_ORDER) { const L = CL.LADDERS[l]; assert.ok(L.ids.length >= 5 && L.ids.every(id => CL.EX[id]), l); assert.ok(L.start >= 0 && L.start < L.ids.length, l); assert.equal(new Set(L.ids).size, L.ids.length, 'no duplicate rungs in ' + l); }
+  const st = CL.emptyState();
+  for (let d = 0; d < 7; d++) {
+    const def = CL.resolveDay(st, d, '2026-10-27'); assert.ok(def.blocks && !def.custom);
+    const p = CL.dayPlan(d, 1, st.settings, def);
+    const ids = p.items.map(i => i.id); assert.equal(new Set(ids).size, ids.length, 'duplicate exercise on day ' + d);
+    assert.equal(p.progressive, true); assert.ok(CL.estimateMinutes(p, st.settings).minutes <= 45);
+  }
+  const mon = CL.dayPlan(0, 1, st.settings, CL.resolveDay(st, 0, '2026-10-27'));
+  assert.deepEqual(mon.items.map(i => i.tag), ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'C3']);
+  assert.deepEqual(CL.buildQueue(mon).slice(0, 6).map(q => q.item.tag + q.setNo), ['A11', 'A21', 'A12', 'A22', 'A13', 'A23']);
+  assert.equal(mon.items[0].id, 'standard-push-ups'); assert.equal(mon.items[0].sets, 3); assert.equal(mon.items[4].sets, 2, 'core circuit: 2 rounds in block 1');
+  const tue = CL.dayPlan(1, 1, st.settings, CL.resolveDay(st, 1, '2026-10-27'));
+  assert.equal(tue.items[0].kind, 'interval'); assert.equal(tue.items[0].sets, 2); assert.deepEqual(tue.items[0].interval, { work: 40, rest: 20 }); assert.ok(CL.buildQueue(tue)[0].timed);
+  st.week = 5; assert.equal(CL.dayPlan(1, 5, st.settings, CL.resolveDay(st, 1, '2026-10-27')).items[0].sets, 3, 'block 2: 3 rounds');
+  assert.equal(CL.dayPlan(0, 5, st.settings, CL.resolveDay(st, 0, '2026-10-27')).items[4].sets, 3, 'block 2: core 3 rounds');
+  st.week = 4; const dl = CL.dayPlan(0, 4, st.settings, CL.resolveDay(st, 0, '2026-10-27')); assert.ok(dl.deload); assert.equal(dl.items[0].sets, 2); assert.equal(dl.items[4].sets, 1);
+  assert.deepEqual(CL.weekInfo(13), { week: 13, block: 4, wk: 1, deload: false, setCap: 5 }); assert.equal(CL.weekInfo(99).week, CL.MAX_WEEK);
+  // A rung collision (same exercise in two ladders) is resolved by stepping along the ladder.
+  st.week = 1; st.progress.ladders['push-b'].rung = 0; // knee push-ups
+  st.progress.ladders['push-h'].rung = 2;              // knee push-ups too
+  const wed = CL.dayPlan(2, 1, st.settings, CL.resolveDay(st, 2, '2026-10-27')); const monB = CL.dayPlan(0, 1, st.settings, CL.resolveDay(st, 0, '2026-10-27'));
+  assert.equal(monB.items[0].id, 'knee-push-ups'); assert.equal(wed.items[0].id, 'knee-push-ups'); // different days may share
+  st.program = {}; st.progress.ladders['core-a'].rung = 4; // hollow-hold is in core-a only; plank ladder unaffected
+  const ids = CL.dayPlan(0, 1, st.settings, CL.resolveDay(st, 0, '2026-10-27')).items.map(i => i.id); assert.equal(new Set(ids).size, ids.length);
+});
+
+test('v4 rests & estimate: short inside a superset, full after the pair, short between circuit stations, interval rest on timed stations', () => {
+  const st = CL.emptyState(); const p = CL.dayPlan(0, 1, st.settings, CL.resolveDay(st, 0, '2026-10-27')); const q = CL.buildQueue(p);
+  const r = i => CL.restAfter(q[i], q[i + 1], p, st.settings);
+  assert.equal(r(0), 20, 'A1 → A2'); assert.equal(r(1), 45, 'A2 → A1 next set'); assert.equal(r(5), 60, 'end of pair → B'); 
+  const c0 = q.findIndex(e => e.item.btype === 'circuit'); assert.equal(r(c0), 15, 'circuit station'); assert.equal(r(c0 + 2), 45, 'after a round'); assert.equal(CL.restAfter(q[q.length - 1], undefined, p, st.settings), 0);
+  const tue = CL.dayPlan(1, 1, st.settings, CL.resolveDay(st, 1, '2026-10-27')); const tq = CL.buildQueue(tue);
+  assert.equal(CL.restAfter(tq[0], tq[1], tue, st.settings), 20); assert.equal(CL.restAfter(tq[11], tq[12], tue, st.settings), 20, 'last station → mobility uses the interval rest');
+  const est = CL.estimateMinutes(p, st.settings); assert.ok(est.minutes >= 22 && est.minutes <= 30, 'Mon ≈ ' + est.minutes);
+  const estT = CL.estimateMinutes(tue, st.settings); assert.ok(estT.minutes >= 15 && estT.minutes <= 22, 'Tue ≈ ' + estT.minutes);
+  // classic/custom plans are unchanged: single blocks, the old restFor rules
+  const classic = CL.emptyState(); classic.mode = 'classic'; const cp = CL.dayPlan(0, 1, classic.settings, CL.resolveDay(classic, 0, '2026-10-27')); const cq = CL.buildQueue(cp);
+  assert.equal(CL.restAfter(cq[0], cq[1], cp, classic.settings), 45); assert.equal(CL.restAfter(cq[2], cq[3], cp, classic.settings), 60); assert.equal(cp.progressive, false);
+});
+
+test('v4 progression: top-of-range sets add a set, then a rung; Max rating blocks it; two weak sessions step back; undo restores', () => {
+  const T0 = Date.parse('2026-10-27T18:00:00Z'); const at = k => new Date(T0 + k * 60000).toISOString();
+  const run = (st, dayIdx, repsFor, effort) => {
+    const p = CL.dayPlan(dayIdx, st.week, st.settings, CL.resolveDay(st, dayIdx, '2026-10-27'));
+    for (const it of p.items) { const n = repsFor(it); if (n == null) continue; state_log(st, it, n, effort); }
+    return CL.evaluateSession(st, p, T0, T0 + 1800000);
+  };
+  const state_log = (st, it, reps, effort) => { st.sets[it.logKey] = []; for (let k = 1; k <= it.sets; k++) { const e = { reps, at: at(k), unit: it.unit }; if (it.burnout && k === it.sets) { e.burnout = true; e.secs = 40; } if (effort) e.effort = effort; st.sets[it.logKey].push(e); } };
+  let st = CL.emptyState();
+  let ch = run(st, 0, it => it.ladder === 'push-h' ? it.hi : null);
+  assert.deepEqual(ch.map(c => c.type), ['set']); assert.equal(st.progress.ladders['push-h'].sets, 4); assert.ok(st.lastChanges && st.lastChanges.changes.length === 1);
+  assert.ok(CL.undoLastChanges(st)); assert.equal(st.progress.ladders['push-h'].sets, 3); assert.equal(st.lastChanges, null);
+  // cap reached → rung up, sets reset
+  st.progress.ladders['push-h'].sets = 4; st.sets = {};
+  ch = run(st, 0, it => it.ladder === 'push-h' ? it.hi : null);
+  assert.deepEqual(ch.map(c => c.type), ['up']); assert.equal(st.progress.ladders['push-h'].rung, 4); assert.equal(st.progress.ladders['push-h'].sets, 3); assert.match(ch[0].text, /Close-grip push-ups/);
+  // Max rating blocks a progression even at the top of the range
+  st.sets = {}; ch = run(st, 0, it => it.ladder === 'squat' ? it.hi : null, 'm'); assert.deepEqual(ch, []); assert.equal(st.progress.ladders['squat'].rung, 1);
+  // burnout set below the low end blocks it too
+  st.sets = {}; { const p = CL.dayPlan(0, 1, st.settings, CL.resolveDay(st, 0, '2026-10-27')); const it = p.items.find(i => i.ladder === 'squat'); state_log(st, it, it.hi); st.sets[it.logKey][it.sets - 1].reps = it.lo - 1; assert.deepEqual(CL.evaluateSession(st, p, T0), []); }
+  // incomplete session: no judgement
+  st.sets = {}; { const p = CL.dayPlan(0, 1, st.settings, CL.resolveDay(st, 0, '2026-10-27')); const it = p.items.find(i => i.ladder === 'pull'); st.sets[it.logKey] = [{ reps: 2, at: at(1) }]; assert.deepEqual(CL.evaluateSession(st, p, T0), []); assert.equal(st.progress.ladders['pull'].fails, 0); }
+  // two weak sessions in a row → down a rung (or fewer sets at rung 0)
+  st.sets = {}; ch = run(st, 0, it => it.ladder === 'hinge' ? Math.max(0, it.lo - 3) : null); assert.deepEqual(ch, []); assert.equal(st.progress.ladders['hinge'].fails, 1);
+  st.sets = {}; ch = run(st, 0, it => it.ladder === 'hinge' ? Math.max(0, it.lo - 3) : null); assert.deepEqual(ch.map(c => c.type), ['down']); assert.equal(st.progress.ladders['hinge'].rung, 1); assert.equal(st.progress.ladders['hinge'].fails, 0);
+  st.sets = {}; st.progress.ladders['lunge'] = { rung: 0, sets: 3, fails: 1 }; ch = run(st, 2, it => it.ladder === 'lunge' ? 1 : null); assert.deepEqual(ch.map(c => c.type), ['fewer']); assert.equal(st.progress.ladders['lunge'].sets, 2);
+  // a good session resets the fail counter
+  st.sets = {}; st.progress.ladders['pull'].fails = 1; run(st, 0, it => it.ladder === 'pull' ? it.lo : null); assert.equal(st.progress.ladders['pull'].fails, 0);
+  // deload weeks and classic mode never evaluate
+  st.sets = {}; st.week = 4; assert.deepEqual(run(st, 0, it => it.hi), []); st.week = 1; st.mode = 'classic'; assert.deepEqual(run(st, 0, it => it.hi), []);
+  // manual nudge and storage round-trip
+  st.mode = 'progressive'; assert.ok(CL.adjustLadder(st, 'squat', +1)); assert.equal(st.progress.ladders['squat'].rung, 2); assert.ok(!CL.adjustLadder(st, 'lunge', -1));
+  const again = CL.normalize(JSON.parse(JSON.stringify(st))).state; assert.deepEqual(again.progress.ladders, st.progress.ladders); assert.equal(again.progress.log.length, st.progress.log.length); assert.equal(again.mode, 'progressive');
+  const bad = CL.normalize({ schemaVersion: 3, progress: { ladders: { 'push-h': { rung: 99, sets: 0, fails: -1 }, nope: { rung: 1 } }, log: 'x' }, lastChanges: { changes: [{ ladder: 'push-h', type: 'set', text: 'x' }], prev: { 'push-h': { rung: 3, sets: 3, fails: 0 } } }, mode: 'weird' }).state;
+  assert.deepEqual(bad.progress.ladders['push-h'], { rung: 3, sets: 3, fails: 0 }); assert.equal(bad.progress.ladders.nope, undefined); assert.equal(bad.mode, 'progressive'); assert.equal(bad.lastChanges.changes.length, 1);
+  // merge keeps the furthest ladder state
+  const a = CL.emptyState(); a.progress.ladders['squat'].rung = 2; const b = CL.emptyState(); b.progress.ladders['squat'].rung = 4; b.progress.ladders['push-h'].sets = 5;
+  const m = CL.merge(a, b); assert.equal(m.progress.ladders['squat'].rung, 4); assert.equal(m.progress.ladders['push-h'].sets, 5);
+  // custom (plain-list) days still take their sets from the ladders
+  const cs = CL.emptyState(); cs.progress.ladders['push-h'].sets = 5; CL.applyEdit(cs, 0, { type: 'swap', section: 'm', index: 1, id: 'sumo-squats' }, 'plan', '2026-10-27');
+  const cp = CL.dayPlan(0, 1, cs.settings, CL.resolveDay(cs, 0, '2026-10-27')); assert.equal(cp.custom, true); assert.equal(cp.items[0].sets, 5); assert.equal(cp.items[0].btype, 'single'); assert.equal(cp.items[1].id, 'sumo-squats');
 });

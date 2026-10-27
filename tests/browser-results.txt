@@ -16,5 +16,7 @@ PASS v2: crafted backup cannot inject markup
 PASS v3: swap an exercise for today only — plan updates, badge shows, logs key by the new id, and it expires tomorrow
 PASS v3: permanent edits (swap, add, move, remove) persist across reload; reset restores the default; a session blocks editing
 PASS v3: recorded coach — manifest loads, cues are queued as clip ids with text fallbacks, quotes fit the rest, device mode bypasses clips
+PASS v4: Monday is supersets + core circuit; A1→A2 rest is 20 s, after the pair 45 s; effort rating is stored; interval day auto-logs stations
+PASS v4: a perfect session earns progressions (set, then rung), the progress card shows them with Undo, and ladders can be nudged
 PASS v3: service worker precaches the shell and the essential clips (not the long ones) and serves audio cache-first
 PASS v2: no console errors during the run

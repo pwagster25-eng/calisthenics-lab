@@ -59,7 +59,17 @@ export function buildCatalogue() {
     nothing: 'Nothing left to do today.',
     resume: 'Back to it.',
     test: "Voice check. You're hearing the recorded coach.",
-    last_set: 'Last set.'
+    last_set: 'Last set.',
+    // v4
+    circuit_start: 'Circuit. Work hard, rest short. Go!',
+    work: 'Work!',
+    rest_short: 'Rest.',
+    superset: 'Superset. Straight into the next one.',
+    round_2: 'Round two.', round_3: 'Round three.', round_4: 'Round four.', round_5: 'Round five.', round_6: 'Round six.',
+    progress_up: 'Level up. You earned the next variation.',
+    progress_set: 'Volume up. One more set next time.',
+    progress_down: 'Dialing it back a step. Earn it back.',
+    deload_week: 'Deload week. Lighter on purpose — move well and recover.'
   }).forEach(([k, v]) => add(k, v));
   return c;
 }

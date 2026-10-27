@@ -168,7 +168,7 @@
       m: ['comfortable-walking', 'cobra-press-ups', 'cat-cow', 'hip-mobility'], c: [] }
   ];
 
-  const PHASES = [
+  const PHASES_CLASSIC = [
     { tier: 'foundation', text: 'Foundation: technique first, low end of each rep range.' },
     { tier: 'foundation', text: 'Consistency: same volume, cleaner reps.' },
     { tier: 'build', text: 'Build: work to the top of each rep range.' },
@@ -178,6 +178,12 @@
     { tier: 'consolidate', text: 'Consolidate: a third set on the first two exercises; leave 2 reps in reserve.' },
     { tier: 'deload', text: 'Deload: about half the sets, low end of ranges, reassess.' }
   ];
+  const MAX_WEEK = 52;
+  /* Classic tiers repeat every 8 weeks so weeks 9+ still have a prescription. */
+  const PHASES = Array.from({ length: MAX_WEEK }, (_, i) => PHASES_CLASSIC[i % 8]);
+  /* v4 blocks: 4-week waves — three weeks to earn progressions, one deload at ~60 % of the sets. */
+  function weekInfo(week) { const w = clamp(Number(week) || 1, 1, MAX_WEEK); const block = Math.ceil(w / 4), wk = (w - 1) % 4 + 1; return { week: w, block, wk, deload: wk === 4, setCap: Math.min(5, 3 + block) }; }
+  const BLOCK_TEXT = ['Build: every set to the top of its range earns a progression.', 'Push: same rule — top of the range on every set, not rated Max.', 'Peak: last chance this block to earn the next rung.', 'Deload: about 60 % of the sets, nothing is evaluated. Move well and recover.'];
 
   const DEFAULT_SETTINGS = {
     restWithin: 45,        // seconds between sets of the same exercise (strength days)
@@ -200,7 +206,12 @@
     voiceURI: '',          // device voice for fallback / 'device' mode ('' = automatic)
     voiceRate: 1,
     coachVoice: 'recorded', // 'recorded' (bundled clips) | 'device' (speechSynthesis)
-    audioMix: 'mix'        // 'mix' (music keeps playing) | 'duck' (music lowered while the coach talks) | 'solo' (coach pauses music, plays on silent)
+    audioMix: 'mix',       // 'mix' (music keeps playing) | 'duck' (music lowered while the coach talks) | 'solo' (coach pauses music, plays on silent)
+    restPair: 20,          // v4: A1 → A2 inside a superset
+    restCircuit: 15,       // v4: between exercises inside the core circuit
+    restRound: 45,         // v4: after a full round of the core circuit
+    intervalWork: 40,      // v4: conditioning circuit work interval (seconds)
+    intervalRest: 20       // v4: conditioning circuit rest interval (seconds)
   };
 
   /* ------------------------------------------------------------------ */
@@ -209,7 +220,7 @@
   function prescription(exId, week, dayIdx, posInMain, settings) {
     const ex = EX[exId];
     const st = Object.assign({}, DEFAULT_SETTINGS, settings || {});
-    const tier = PHASES[week - 1].tier;
+    const tier = PHASES[clamp(week, 1, MAX_WEEK) - 1].tier;
     const isStrength = STRENGTH_GROUPS.includes(ex.group);
     let sets = ex.sets + (isStrength && ex.sets >= 2 ? st.extraSets : 0), target = ex.lo, hint = '';
     if (tier === 'build' || tier === 'progress' || tier === 'consolidate') target = ex.hi;
@@ -224,20 +235,180 @@
     return { sets, target, unit, label, hint, perSide: !!ex.perSide, kind: ex.kind, burnout, burnoutSeconds: st.burnoutSeconds };
   }
 
-  /* dayDef (optional): { m: [ids], c: [ids] } — a customised day from resolveDay(). Defaults to PROGRAM[dayIdx]. */
+  /* dayDef (optional): from resolveDay(). Either a flat { m, c } list (classic / customised day, with optional
+     per-id `meta` from the ladders) or a progressive day with `blocks` (supersets, core circuit, interval circuit). */
   function dayPlan(dayIdx, week, settings, dayDef) {
-    const p = PROGRAM[dayIdx];
-    const def = dayDef && Array.isArray(dayDef.m) ? dayDef : p;
-    const mk = (section) => (def[section] || []).filter(id => EX[id]).map((id, i) => {
-      const pr = prescription(id, week, dayIdx, section === 'm' ? i : -1, settings);
-      return Object.assign({ id, section, name: EX[id].name, cue: EX[id].cue, how: EX[id].how || '', group: EX[id].group, level: EX[id].level, lo: EX[id].lo, hi: EX[id].hi, logKey: `${week}-${dayIdx}-${id}` }, pr);
-    });
-    const light = p.k !== 'Strength';
+    const p = TEMPLATE[dayIdx] && (!dayDef || dayDef.blocks || dayDef.progressive) ? TEMPLATE[dayIdx] : PROGRAM[dayIdx];
     const st = Object.assign({}, DEFAULT_SETTINGS, settings || {});
-    const items = [...mk('m'), ...mk('c')];
+    const info = weekInfo(week);
+    const items = [];
+    const base = (id, section, posInMain, extra) => {
+      const pr = prescription(id, week, dayIdx, posInMain, st);
+      return Object.assign({ id, section, name: EX[id].name, cue: EX[id].cue, how: EX[id].how || '', group: EX[id].group, level: EX[id].level, lo: EX[id].lo, hi: EX[id].hi, logKey: `${week}-${dayIdx}-${id}`, block: 0, btype: 'single', tag: '', ladder: null, rung: 0, rungCount: 0, interval: null, round: 0 }, pr, extra || {});
+    };
+    const deloadSets = n => info.deload ? Math.max(2, Math.ceil(n * 0.6)) : n;
+    if (dayDef && Array.isArray(dayDef.blocks)) {
+      dayDef.blocks.forEach((b, bi) => {
+        const rounds = info.deload ? Math.max(1, b.rounds - 1) : b.rounds;
+        b.items.forEach((bit, k) => {
+          if (!EX[bit.id]) return;
+          const section = b.type === 'circuit' ? 'c' : 'm';
+          const it = base(bit.id, section, section === 'm' ? items.length : -1, { block: bi, btype: b.type, tag: bit.tag || '', ladder: bit.ladder || null, rung: bit.rung || 0, rungCount: bit.rungCount || 0 });
+          if (b.type === 'pair') { it.sets = deloadSets(bit.sets); it.target = it.hi; it.hint = ''; }
+          else if (b.type === 'circuit') { it.sets = rounds; it.target = it.hi; it.burnout = false; it.hint = ''; }
+          else if (b.type === 'interval') { it.sets = rounds; it.kind = 'interval'; it.unit = 'sec'; it.target = b.work; it.lo = it.hi = b.work; it.burnout = false; it.hint = ''; it.interval = { work: b.work, rest: b.rest }; it.perSide = false; }
+          if (it.unit !== 'min') it.label = it.kind === 'interval' ? `${it.sets} round${it.sets > 1 ? 's' : ''} × ${b.work} s on / ${b.rest} s off` : `${it.sets} × ${it.lo === it.hi ? it.lo : it.lo + '–' + it.hi}${it.unit === 'sec' ? ' sec' : ''}${it.perSide ? '/side' : ''}`;
+          items.push(it);
+        });
+      });
+    } else {
+      const def = dayDef && Array.isArray(dayDef.m) ? dayDef : PROGRAM[dayIdx];
+      const meta = (dayDef && dayDef.meta) || {};
+      let bi = 0;
+      for (const section of ['m', 'c']) (def[section] || []).filter(id => EX[id]).forEach(id => {
+        const m = meta[id];
+        const it = base(id, section, section === 'm' ? items.length : -1, { block: bi++, ladder: m ? m.ladder : null, rung: m ? m.rung : 0, rungCount: m ? m.rungCount : 0 });
+        if (m && STRENGTH_GROUPS.includes(it.group)) { it.sets = deloadSets(m.sets); it.target = it.hi; it.hint = ''; it.label = `${it.sets} × ${it.lo === it.hi ? it.lo : it.lo + '–' + it.hi}${it.unit === 'sec' ? ' sec' : ''}${it.perSide ? '/side' : ''}`; }
+        items.push(it);
+      });
+    }
+    const light = p.k !== 'Strength';
     return { dayIdx, week, d: p.d, n: p.n, k: p.k, f: p.f, light, items, mainCount: items.filter(i => i.section === 'm').length,
-      custom: !!(dayDef && dayDef.custom), temporary: !!(dayDef && dayDef.temporary),
+      custom: !!(dayDef && dayDef.custom), temporary: !!(dayDef && dayDef.temporary), progressive: !!(dayDef && (dayDef.blocks || dayDef.progressive)), deload: info.deload, block: info.block, wk: info.wk,
       warmupSeconds: light ? Math.round(st.warmupSeconds / 2) : st.warmupSeconds, cooldownSeconds: light ? Math.round(st.cooldownSeconds / 2) : st.cooldownSeconds };
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Progressive programme (v4)                                          */
+  /* Ladders: ordered variations of one movement pattern. Progress per   */
+  /* ladder = { rung, sets, fails }. Earn a progression by hitting the   */
+  /* top of the range on every working set without rating any set Max.  */
+  /* ------------------------------------------------------------------ */
+  const LADDERS = {
+    'push-h':  { name: 'Push (horizontal)', start: 3, ids: ['wall-push-ups', 'incline-push-ups', 'knee-push-ups', 'standard-push-ups', 'close-grip-push-ups', 'decline-push-ups', 'diamond-push-ups', 'archer-push-ups'] },
+    'push-b':  { name: 'Push (shoulders & tempo)', start: 3, ids: ['knee-push-ups', 'tempo-push-ups', 'staggered-push-ups', 'pike-push-ups', 'hindu-push-ups', 'pseudo-planche-lean'] },
+    'squat':   { name: 'Squat', start: 1, ids: ['sumo-squats', 'bodyweight-squats', 'pause-squats', 'split-squats', 'cossack-squats', 'jump-squats', 'assisted-pistol-squats'] },
+    'lunge':   { name: 'Lunge & single leg', start: 0, ids: ['reverse-lunges', 'forward-lunges', 'walking-lunges', 'curtsy-lunges', 'bulgarian-split-squats', 'skater-hops'] },
+    'hinge':   { name: 'Hinge & glutes', start: 2, ids: ['glute-bridges', 'frog-pumps', 'glute-bridge-march', 'hip-thrusts', 'single-leg-glute-bridges', 'single-leg-rdl'] },
+    'hinge-2': { name: 'Hinge & glutes (B)', start: 1, ids: ['frog-pumps', 'hip-thrusts', 'good-mornings', 'single-leg-glute-bridges', 'single-leg-rdl', 'reverse-plank'] },
+    'pull':    { name: 'Upper back', start: 0, ids: ['reverse-snow-angels', 'prone-w-raises', 'prone-ytw-raises', 'prone-lat-pulls', 'prone-swimmers', 'supermans', 'scapular-push-ups'] },
+    'pull-2':  { name: 'Upper back (B)', start: 2, ids: ['wall-slides', 'prone-cobra-hold', 'prone-ytw-raises', 'prone-swimmers', 'prone-lat-pulls', 'reverse-plank'] },
+    'core-a':  { name: 'Core — front', start: 1, ids: ['crunches', 'reverse-crunches', 'dead-bugs', 'bent-knee-leg-raises', 'hollow-hold', 'straight-leg-raises', 'hollow-rocks', 'v-ups'] },
+    'core-l':  { name: 'Core — side & rotation', start: 1, ids: ['heel-touches', 'side-plank', 'bird-dogs', 'side-plank-dips', 'russian-twists', 'windshield-wipers'] },
+    'plank':   { name: 'Plank & crawl', start: 0, ids: ['plank', 'plank-shoulder-taps', 'bear-crawl', 'mountain-climbers', 'plank-up-downs'] }
+  };
+  const LADDER_ORDER = Object.keys(LADDERS);
+  /* Week template: supersets (A1/A2), a core circuit, two interval circuits, one recovery day. */
+  const TEMPLATE = [
+    { d: 'Mon', n: 'Full Body A', k: 'Strength', f: 'Push • squat • upper back • hinge', blocks: [{ type: 'pair', slots: ['push-h', 'squat'] }, { type: 'pair', slots: ['pull', 'hinge'] }, { type: 'circuit', slots: ['core-a', 'core-l', 'plank'] }] },
+    { d: 'Tue', n: 'Circuit 1', k: 'Circuit', f: 'Conditioning • whole body • timed rounds', blocks: [{ type: 'interval', ids: ['jumping-jacks', 'bodyweight-squats', 'mountain-climbers', 'reverse-lunges', 'high-knees', 'bear-crawl'] }, { type: 'single', ids: ['hip-mobility'] }] },
+    { d: 'Wed', n: 'Full Body B', k: 'Strength', f: 'Shoulders • lunge • upper back • glutes', blocks: [{ type: 'pair', slots: ['push-b', 'lunge'] }, { type: 'pair', slots: ['pull-2', 'hinge-2'] }, { type: 'circuit', slots: ['core-a', 'core-l', 'plank'] }] },
+    { d: 'Thu', n: 'Circuit 2', k: 'Circuit', f: 'Conditioning • whole body • timed rounds', blocks: [{ type: 'interval', ids: ['squat-thrusts', 'skater-hops', 'plank-shoulder-taps', 'sumo-squats', 'high-knees', 'glute-bridges'] }, { type: 'single', ids: ['worlds-greatest-stretch', 'hip-mobility'] }] },
+    { d: 'Fri', n: 'Full Body C', k: 'Strength', f: 'Push • lunge • upper back • hinge', blocks: [{ type: 'pair', slots: ['push-h', 'lunge'] }, { type: 'pair', slots: ['pull', 'hinge'] }, { type: 'circuit', slots: ['core-a', 'core-l', 'plank'] }] },
+    { d: 'Sat', n: 'Full Body D', k: 'Strength', f: 'Shoulders • squat • upper back • glutes', blocks: [{ type: 'pair', slots: ['push-b', 'squat'] }, { type: 'pair', slots: ['pull-2', 'hinge-2'] }, { type: 'circuit', slots: ['core-a', 'core-l', 'plank'] }] },
+    { d: 'Sun', n: 'Active Recovery', k: 'Recovery', f: 'Mobility • easy walk', blocks: [{ type: 'single', ids: ['comfortable-walking', 'cobra-press-ups', 'cat-cow', 'hip-mobility'] }] }
+  ];
+  const BASE_SETS = 3;
+  function emptyProgress() { const ladders = {}; for (const l of LADDER_ORDER) ladders[l] = { rung: LADDERS[l].start, sets: BASE_SETS, fails: 0 }; return { ladders, log: [] }; }
+  function cleanProgress(raw) {
+    const out = emptyProgress();
+    if (!raw || typeof raw !== 'object') return out;
+    const L = raw.ladders && typeof raw.ladders === 'object' ? raw.ladders : {};
+    for (const l of LADDER_ORDER) {
+      const r = L[l]; if (!r || typeof r !== 'object') continue;
+      const n = LADDERS[l].ids.length;
+      const rung = Math.round(Number(r.rung)), sets = Math.round(Number(r.sets)), fails = Math.round(Number(r.fails));
+      if (Number.isInteger(rung) && rung >= 0 && rung < n) out.ladders[l].rung = rung;
+      if (Number.isInteger(sets) && sets >= 1 && sets <= 6) out.ladders[l].sets = sets;
+      if (Number.isInteger(fails) && fails >= 0 && fails <= 5) out.ladders[l].fails = fails;
+    }
+    if (Array.isArray(raw.log)) out.log = raw.log.slice(-60).filter(e => e && typeof e === 'object' && LADDERS[e.ladder] && typeof e.at === 'string' && ['set', 'up', 'down', 'fewer', 'top', 'manual'].includes(e.type)).map(e => ({ at: e.at, ladder: e.ladder, type: e.type, from: String(e.from || ''), to: String(e.to || '') }));
+    return out;
+  }
+  function cleanChanges(raw) {
+    if (!raw || typeof raw !== 'object' || !Array.isArray(raw.changes) || !raw.prev || typeof raw.prev !== 'object') return null;
+    const prev = {}; for (const l of Object.keys(raw.prev)) if (LADDERS[l]) { const c = cleanProgress({ ladders: { [l]: raw.prev[l] } }); prev[l] = c.ladders[l]; }
+    const changes = raw.changes.filter(c => c && LADDERS[c.ladder] && ['set', 'up', 'down', 'fewer', 'top'].includes(c.type)).map(c => ({ ladder: c.ladder, type: c.type, text: String(c.text || '').slice(0, 160) }));
+    if (!changes.length) return null;
+    return { at: typeof raw.at === 'string' ? raw.at : new Date().toISOString(), changes, prev, key: typeof raw.key === 'string' ? raw.key : '' };
+  }
+  function ladderOf(exId) { for (const l of LADDER_ORDER) if (LADDERS[l].ids.includes(exId)) return l; return null; }
+  function ladderState(state, l) { const P = (state && state.progress && state.progress.ladders) || {}; return P[l] || { rung: LADDERS[l].start, sets: BASE_SETS, fails: 0 }; }
+  function currentExercise(state, l) { const st = ladderState(state, l); return LADDERS[l].ids[clamp(st.rung, 0, LADDERS[l].ids.length - 1)]; }
+  /* The progressive day: template blocks resolved through the ladders' current rungs. */
+  function templateDay(dayIdx, state) {
+    const t = TEMPLATE[dayIdx]; const info = weekInfo(state && state.week || 1);
+    const st = Object.assign({}, DEFAULT_SETTINGS, (state && state.settings) || {});
+    const used = new Set(); const m = [], c = [];
+    const blocks = t.blocks.map((b, bi) => {
+      const letter = String.fromCharCode(65 + bi);
+      let items;
+      if (b.slots) items = b.slots.map((l, k) => {
+        const ls = ladderState(state, l); let rung = clamp(ls.rung, 0, LADDERS[l].ids.length - 1), id = LADDERS[l].ids[rung];
+        // Never schedule the same exercise twice in one day: step along the ladder until it is unique.
+        let tries = 0; while (used.has(id) && tries < LADDERS[l].ids.length) { rung = (rung + 1) % LADDERS[l].ids.length; id = LADDERS[l].ids[rung]; tries++; }
+        used.add(id);
+        return { id, ladder: l, rung, rungCount: LADDERS[l].ids.length, sets: clamp(ls.sets, 1, 6), tag: b.type === 'pair' ? `${letter}${k + 1}` : b.type === 'circuit' ? `${letter}${k + 1}` : '' };
+      });
+      else items = b.ids.map(id => { used.add(id); return { id, ladder: null, rung: 0, rungCount: 0, sets: 1, tag: '' }; });
+      const rounds = b.type === 'circuit' ? (info.block >= 2 ? 3 : 2) : b.type === 'interval' ? Math.min(4, 1 + info.block) : 1;
+      for (const it of items) (b.type === 'circuit' ? c : m).push(it.id);
+      return { type: b.type, items, rounds, work: st.intervalWork, rest: st.intervalRest };
+    });
+    return { m, c, blocks };
+  }
+  /* Ladder metadata for a customised (flat) day so sets still follow the ladders. */
+  function metaFor(ids, state) { const meta = {}; for (const id of ids) { const l = ladderOf(id); if (l) { const ls = ladderState(state, l); meta[id] = { ladder: l, rung: LADDERS[l].ids.indexOf(id), rungCount: LADDERS[l].ids.length, sets: clamp(ls.sets, 1, 6) }; } } return meta; }
+
+  /* Evaluate a finished session and apply earned progressions. Returns the list of changes (already applied). */
+  function evaluateSession(state, plan, startedAt, now) {
+    const info = weekInfo(plan.week);
+    if (state.mode === 'classic' || info.deload) return [];
+    const P = state.progress = state.progress || emptyProgress();
+    const changes = [], prev = {}, seen = new Set();
+    for (const it of plan.items) {
+      const l = it.ladder; if (!l || seen.has(l) || !LADDERS[l]) continue; seen.add(l);
+      const entries = (state.sets[it.logKey] || []).filter(e => e.at && Date.parse(e.at) >= startedAt && !e.auto);
+      const working = entries.filter(e => !e.burnout);
+      const planned = it.sets - (it.burnout ? 1 : 0);
+      if (working.length < planned || planned < 1) continue;        // incomplete: no judgement either way
+      const ls = P.ladders[l] = P.ladders[l] || { rung: LADDERS[l].start, sets: BASE_SETS, fails: 0 };
+      const n = LADDERS[l].ids.length, maxed = entries.some(e => e.effort === 'm');
+      const allTop = working.every(e => e.reps >= it.hi) && !maxed && (!it.burnout || !entries.some(e => e.burnout && e.reps < it.lo));
+      const weak = working.filter(e => e.reps < it.lo).length >= 2 || (maxed && working.some(e => e.reps < it.lo));
+      const before = { rung: ls.rung, sets: ls.sets, fails: ls.fails };
+      let type = null, text = '';
+      if (allTop) {
+        ls.fails = 0;
+        if (ls.sets < info.setCap) { ls.sets += 1; type = 'set'; text = `${EX[it.id].name}: ${ls.sets} sets next time.`; }
+        else if (ls.rung < n - 1) { ls.rung += 1; ls.sets = BASE_SETS; type = 'up'; text = `${LADDERS[l].name}: ${EX[it.id].name} → ${EX[LADDERS[l].ids[ls.rung]].name}.`; }
+        else { type = 'top'; text = `${EX[it.id].name}: top of the ladder at ${ls.sets} sets — keep adding reps.`; }
+      } else if (weak) {
+        ls.fails = (ls.fails || 0) + 1;
+        if (ls.fails >= 2) {
+          ls.fails = 0;
+          if (ls.rung > 0) { ls.rung -= 1; type = 'down'; text = `${LADDERS[l].name}: back to ${EX[LADDERS[l].ids[ls.rung]].name} for now — earn it back.`; }
+          else if (ls.sets > 2) { ls.sets -= 1; type = 'fewer'; text = `${EX[it.id].name}: ${ls.sets} sets for now.`; }
+        }
+      } else ls.fails = 0;
+      if (type) { prev[l] = before; changes.push({ ladder: l, type, text }); P.log.push({ at: new Date(now || Date.now()).toISOString(), ladder: l, type, from: `${before.rung}/${before.sets}`, to: `${ls.rung}/${ls.sets}` }); }
+    }
+    if (P.log.length > 60) P.log = P.log.slice(-60);
+    if (changes.length) state.lastChanges = { at: new Date(now || Date.now()).toISOString(), changes, prev, key: `${plan.week}-${plan.dayIdx}` };
+    return changes;
+  }
+  function undoLastChanges(state) {
+    const lc = state.lastChanges; if (!lc) return false;
+    for (const l of Object.keys(lc.prev)) if (LADDERS[l]) state.progress.ladders[l] = Object.assign({}, lc.prev[l]);
+    state.progress.log = state.progress.log.filter(e => e.at !== lc.at);
+    state.lastChanges = null; return true;
+  }
+  /* Manual nudge from the Ladders panel: dir = +1 harder / -1 easier. */
+  function adjustLadder(state, l, dir) {
+    if (!LADDERS[l]) return false; const ls = state.progress.ladders[l];
+    const rung = clamp(ls.rung + dir, 0, LADDERS[l].ids.length - 1); if (rung === ls.rung) return false;
+    state.progress.log.push({ at: new Date().toISOString(), ladder: l, type: 'manual', from: `${ls.rung}/${ls.sets}`, to: `${rung}/${ls.sets}` });
+    ls.rung = rung; ls.fails = 0; return true;
   }
 
   /* ------------------------------------------------------------------ */
@@ -247,16 +418,20 @@
   /* ------------------------------------------------------------------ */
   const MAX_MAIN = 8, MAX_CORE = 4;
   function localDate(d) { d = d || new Date(); const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; }
-  function defaultDay(dayIdx) { const p = PROGRAM[dayIdx]; return { m: p.m.slice(), c: p.c.slice() }; }
+  function defaultDay(dayIdx, state) {
+    if (state && state.mode !== 'classic') { const t = templateDay(dayIdx, state); return { m: t.m, c: t.c, blocks: t.blocks }; }
+    const p = PROGRAM[dayIdx]; return { m: p.m.slice(), c: p.c.slice() };
+  }
   function sameDef(a, b) { return a.m.join(',') === b.m.join(',') && a.c.join(',') === b.c.join(','); }
   /* The day definition in force: today-only swap (if dated today) > permanent custom > default. */
   function resolveDay(state, dayIdx, today) {
     today = today || localDate();
     const t = state.todaySwaps;
-    if (t && t.dayIdx === dayIdx && t.date === today) return { m: t.m.slice(), c: t.c.slice(), custom: true, temporary: true };
+    const prog = state.mode !== 'classic';
+    if (t && t.dayIdx === dayIdx && t.date === today) return { m: t.m.slice(), c: t.c.slice(), custom: true, temporary: true, progressive: prog, meta: prog ? metaFor(t.m.concat(t.c), state) : null };
     const c = state.program && state.program[dayIdx];
-    if (c) return { m: c.m.slice(), c: c.c.slice(), custom: true, temporary: false };
-    return Object.assign(defaultDay(dayIdx), { custom: false, temporary: false });
+    if (c) return { m: c.m.slice(), c: c.c.slice(), custom: true, temporary: false, progressive: prog, meta: prog ? metaFor(c.m.concat(c.c), state) : null };
+    return Object.assign(defaultDay(dayIdx, state), { custom: false, temporary: false });
   }
   /* Pure edit on a day definition. op: {type:'swap'|'remove'|'add'|'move', section:'m'|'c', index, id, to} */
   function editDay(def, op) {
@@ -291,10 +466,10 @@
       state.todaySwaps = { date: today, dayIdx, m: r.def.m, c: r.def.c };
     } else {
       // Permanent: write to program; if a today-only override exists for this day, apply the same op to it too so the change is visible now.
-      const base = (state.program && state.program[dayIdx]) ? { m: state.program[dayIdx].m.slice(), c: state.program[dayIdx].c.slice() } : defaultDay(dayIdx);
+      const base = (state.program && state.program[dayIdx]) ? { m: state.program[dayIdx].m.slice(), c: state.program[dayIdx].c.slice() } : defaultDay(dayIdx, state);
       const rb = cur.temporary ? editDay(base, op) : r;
       state.program = state.program || {};
-      if (sameDef(rb.def, defaultDay(dayIdx))) delete state.program[dayIdx]; else state.program[dayIdx] = { m: rb.def.m, c: rb.def.c };
+      if (sameDef(rb.def, defaultDay(dayIdx, state))) delete state.program[dayIdx]; else state.program[dayIdx] = { m: rb.def.m, c: rb.def.c };
       if (cur.temporary) { if (rb.ok && sameDef(r.def, rb.def)) { delete state.todaySwaps; } else state.todaySwaps = { date: today, dayIdx, m: r.def.m, c: r.def.c }; }
     }
     return { ok: true };
@@ -320,18 +495,13 @@
   function estimateMinutes(plan, settings) {
     const s = Object.assign({}, DEFAULT_SETTINGS, settings || {});
     let work = 0, rest = 0;
-    plan.items.forEach((it, idx) => {
-      const sides = it.perSide ? 2 : 1;
+    const q = buildQueue(plan);
+    q.forEach((e, i) => {
+      const it = e.item, sides = it.perSide ? 2 : 1;
       // Calibrated 2026-10-25: Friday (19 sets, 5 burnouts, 4+2 min warm-up/cool-down, 14 min rest) took 27:34 → ~1.5 s/rep + 4 s per set.
-      let per = it.kind === 'reps' ? it.target * 1.5 * sides + 4 : it.kind === 'hold' ? it.target * sides + 6 : it.target * 60;
-      work += per * it.sets;
-      if (it.burnout) work += it.burnoutSeconds - per + 10; // the last set is timed, not counted
-      for (let k = 1; k <= it.sets; k++) {
-        const last = idx === plan.items.length - 1 && k === it.sets;
-        if (last) continue;
-        const between = k === it.sets;
-        rest += restFor(it, between, plan.light, s);
-      }
+      const per = it.kind === 'reps' ? it.target * 1.5 * sides + 4 : it.kind === 'hold' ? it.target * sides + 6 : it.kind === 'interval' ? it.target : it.target * 60;
+      work += e.burnout ? it.burnoutSeconds + 10 : per;
+      rest += restAfter(e, q[i + 1], plan, s);
     });
     const warm = plan.warmupSeconds != null ? plan.warmupSeconds : (plan.light ? 120 : 240), cool = plan.cooldownSeconds != null ? plan.cooldownSeconds : (plan.light ? 60 : 120);
     const total = (warm + work + rest + cool) / 60;
@@ -352,8 +522,32 @@
   /* ------------------------------------------------------------------ */
   function buildQueue(plan) {
     const q = [];
-    plan.items.forEach((it, ei) => { for (let s = 1; s <= it.sets; s++) q.push({ item: it, ei, setNo: s, lastOfExercise: s === it.sets, burnout: !!it.burnout && s === it.sets }); });
+    const blocks = [];
+    plan.items.forEach((it, ei) => { (blocks[it.block] = blocks[it.block] || []).push({ it, ei }); });
+    for (const b of blocks) {
+      if (!b) continue;
+      const type = b[0].it.btype;
+      if ((type === 'pair' || type === 'circuit' || type === 'interval') && b.length > 1) {
+        const rounds = Math.max(...b.map(x => x.it.sets));
+        for (let r = 1; r <= rounds; r++) for (const { it, ei } of b) if (r <= it.sets) q.push({ item: it, ei, setNo: r, round: r, lastOfExercise: r === it.sets, burnout: !!it.burnout && r === it.sets, timed: it.kind === 'interval' });
+      } else for (const { it, ei } of b) for (let s = 1; s <= it.sets; s++) q.push({ item: it, ei, setNo: s, round: s, lastOfExercise: s === it.sets, burnout: !!it.burnout && s === it.sets, timed: it.kind === 'interval' });
+    }
     return q;
+  }
+  /* Rest after a queue entry, given what comes next. Supersets: short A1→A2, full after the pair. Circuits: short between
+     stations, longer after a round. Interval circuits: the fixed rest interval. */
+  function restAfter(entry, nextEntry, plan, settings) {
+    if (!nextEntry) return 0;
+    const s = Object.assign({}, DEFAULT_SETTINGS, settings || {});
+    const it = entry.item, nx = nextEntry.item;
+    if (it.kind === 'interval') return it.interval ? it.interval.rest : s.intervalRest;
+    if (it.block === nx.block && it.btype !== 'single') {
+      if (it.btype === 'pair') return nx.logKey !== it.logKey && nextEntry.round === entry.round ? s.restPair : s.restWithin;
+      if (it.btype === 'circuit') return nextEntry.round === entry.round ? s.restCircuit : s.restRound;
+    }
+    if (it.block === nx.block) return restFor(it, false, plan.light, s);
+    if (nx.kind === 'interval') return s.restLight;
+    return restFor(it, true, plan.light, s);
   }
 
   function sessionPosition(plan, sets, skipped) {
@@ -374,7 +568,8 @@
   /* Validation & migration                                              */
   /* ------------------------------------------------------------------ */
   const V1_KEY = /^([1-8])-([0-6])-([mc])-(\d{1,2})$/;
-  const V2_KEY = /^([1-8])-([0-6])-([a-z0-9-]{2,40})$/;
+  const V2_KEY = /^([1-9]|[1-4][0-9]|5[0-2])-([0-6])-([a-z0-9-]{2,40})$/;
+  const DAY_KEY = /^([1-9]|[1-4][0-9]|5[0-2])-[0-6]$/;
   const UNITS = ['reps', 'sec', 'min'];
 
   function slugLegacy(week, day, section, i) {
@@ -391,6 +586,8 @@
     if (typeof x.at === 'string' && x.at.length <= 40 && !Number.isNaN(Date.parse(x.at))) out.at = new Date(x.at).toISOString();
     if (UNITS.includes(x.unit)) out.unit = x.unit;
     if (x.burnout === true) { out.burnout = true; const sec = Number(x.secs); if (Number.isFinite(sec) && sec > 0 && sec <= 600) out.secs = Math.round(sec); }
+    if (['e', 'h', 'm'].includes(x.effort)) out.effort = x.effort; // v4: easy / hard / max
+    if (x.auto === true) out.auto = true;                            // v4: logged by the interval timer
     return out;
   }
 
@@ -415,14 +612,14 @@
   function cleanDone(raw) {
     const out = {};
     if (!raw || typeof raw !== 'object') return out;
-    for (const k of Object.keys(raw)) if (/^[1-8]-[0-6]$/.test(k) && raw[k]) out[k] = true;
+    for (const k of Object.keys(raw)) if (DAY_KEY.test(k) && raw[k]) out[k] = true;
     return out;
   }
 
   function cleanPrs(raw) {
     const out = {};
     if (!raw || typeof raw !== 'object') return out;
-    for (const k of Object.keys(raw)) { const n = Number(raw[k]); if (/^[1-8]$/.test(k) && Number.isFinite(n) && n >= 0 && n <= 999) out[k] = Math.round(n); }
+    for (const k of Object.keys(raw)) { const n = Number(raw[k]); if (/^([1-9]|[1-4][0-9]|5[0-2])$/.test(k) && Number.isFinite(n) && n >= 0 && n <= 999) out[k] = Math.round(n); }
     return out;
   }
 
@@ -432,6 +629,7 @@
     const num = (k, lo, hi) => { const n = Number(src[k]); if (Number.isFinite(n) && n >= lo && n <= hi) s[k] = Math.round(n); };
     num('restWithin', 0, 600); num('restBetween', 0, 600); num('restLight', 0, 600); num('capMinutes', 10, 120); num('warnMinutes', 1, 119);
     num('extraSets', 0, 3); num('burnoutSeconds', 15, 120); num('warmupSeconds', 0, 900); num('cooldownSeconds', 0, 900);
+    num('restPair', 0, 120); num('restCircuit', 0, 120); num('restRound', 0, 180); num('intervalWork', 15, 120); num('intervalRest', 5, 90);
     ['soundOn', 'voiceOn', 'hapticsOn', 'countdownOn', 'keepAwake', 'burnoutOn', 'quotesOn'].forEach(k => { if (typeof src[k] === 'boolean') s[k] = src[k]; });
     if (['off', 'light', 'full'].includes(src.cueLevel)) s.cueLevel = src.cueLevel;
     if (['recorded', 'device'].includes(src.coachVoice)) s.coachVoice = src.coachVoice;
@@ -447,7 +645,7 @@
   }
 
   function emptyState() {
-    return { schemaVersion: SCHEMA_VERSION, week: 1, day: 0, done: {}, prs: {}, sets: {}, settings: Object.assign({}, DEFAULT_SETTINGS), session: null, history: [], quoteIdx: 0, program: {}, todaySwaps: null };
+    return { schemaVersion: SCHEMA_VERSION, week: 1, day: 0, done: {}, prs: {}, sets: {}, settings: Object.assign({}, DEFAULT_SETTINGS), session: null, history: [], quoteIdx: 0, program: {}, todaySwaps: null, mode: 'progressive', progress: emptyProgress(), lastChanges: null };
   }
   function cleanIdList(raw, max) {
     if (!Array.isArray(raw)) return null;
@@ -480,7 +678,7 @@
     const st = emptyState();
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { state: st, notes: ['Empty or unrecognised data; starting fresh.'], from: 'empty' };
     const isV2 = Number(raw.schemaVersion) >= 2;
-    st.week = clamp(Number(raw.week) || 1, 1, 8);
+    st.week = clamp(Math.round(Number(raw.week)) || 1, 1, MAX_WEEK);
     st.day = clamp(Number(raw.day) || 0, 0, 6);
     st.done = cleanDone(raw.done);
     st.prs = cleanPrs(raw.prs);
@@ -491,23 +689,26 @@
     st.quoteIdx = clamp(Math.round(Number(raw.quoteIdx)) || 0, 0, 9999);
     st.program = cleanProgram(raw.program);
     st.todaySwaps = cleanTodaySwaps(raw.todaySwaps);
+    st.mode = raw.mode === 'classic' ? 'classic' : 'progressive';
+    st.progress = cleanProgress(raw.progress);
+    st.lastChanges = cleanChanges(raw.lastChanges);
     return { state: st, notes, from: isV2 ? 'v2' : 'v1' };
   }
 
   function cleanSession(raw) {
     if (!raw || typeof raw !== 'object') return null;
     const n = (k) => { const v = Number(raw[k]); return Number.isFinite(v) && v >= 0 ? v : 0; };
-    if (!/^[1-8]-[0-6]$/.test(String(raw.key)) || !n('startedAt')) return null;
+    if (!DAY_KEY.test(String(raw.key)) || !n('startedAt')) return null;
     const skipped = {};
     if (raw.skipped && typeof raw.skipped === 'object') for (const k of Object.keys(raw.skipped)) if (V2_KEY.test(k)) { const v = Number(raw.skipped[k]); if (Number.isFinite(v) && v > 0 && v < 20) skipped[k] = Math.round(v); }
-    return { key: raw.key, startedAt: n('startedAt'), pausedAt: n('pausedAt') || 0, pausedTotal: n('pausedTotal'), restUntil: n('restUntil') || 0, restTotal: n('restTotal') || 0, restKind: raw.restKind === 'between' ? 'between' : 'within', skipped, warned: !!raw.warned, capped: !!raw.capped,
+    return { key: raw.key, startedAt: n('startedAt'), pausedAt: n('pausedAt') || 0, workUntil: n('workUntil') || 0, workTotal: n('workTotal') || 0, pausedTotal: n('pausedTotal'), restUntil: n('restUntil') || 0, restTotal: n('restTotal') || 0, restKind: ['between', 'within', 'pair', 'circuit', 'round', 'interval'].includes(raw.restKind) ? raw.restKind : 'within', skipped, warned: !!raw.warned, capped: !!raw.capped,
       warmUntil: n('warmUntil') || 0, warmTotal: n('warmTotal') || 0, warmDone: !!raw.warmDone, coolUntil: n('coolUntil') || 0, coolTotal: n('coolTotal') || 0, coolDone: !!raw.coolDone, burnUntil: n('burnUntil') || 0, burnTotal: n('burnTotal') || 0, burnReady: !!raw.burnReady };
   }
 
   function cleanHistory(raw) {
     if (!Array.isArray(raw)) return [];
     return raw.slice(-200).map(h => {
-      if (!h || typeof h !== 'object' || !/^[1-8]-[0-6]$/.test(String(h.key))) return null;
+      if (!h || typeof h !== 'object' || !DAY_KEY.test(String(h.key))) return null;
       const start = Number(h.startedAt), end = Number(h.endedAt), logged = Number(h.setsLogged);
       if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
       return { key: h.key, startedAt: start, endedAt: end, setsLogged: Number.isFinite(logged) ? logged : 0, completed: !!h.completed };
@@ -531,6 +732,9 @@
     out.history.sort((a, b) => a.startedAt - b.startedAt);
     out.program = out.program || {};
     for (const k of Object.keys(incoming.program || {})) if (!out.program[k]) out.program[k] = incoming.program[k];
+    // Progress: keep whichever ladder state is further along (higher rung, then more sets).
+    out.progress = out.progress || emptyProgress();
+    for (const l of Object.keys((incoming.progress || {}).ladders || {})) { const a = out.progress.ladders[l], b = incoming.progress.ladders[l]; if (!a || b.rung > a.rung || (b.rung === a.rung && b.sets > a.sets)) out.progress.ladders[l] = Object.assign({}, b); }
     return out;
   }
 
@@ -675,7 +879,8 @@
 
   return {
     SCHEMA_VERSION, STORAGE_V1, STORAGE_V2, STORAGE_PREIMPORT, MAX_IMPORT_BYTES, DEFAULT_SETTINGS,
-    EX, PROGRAM, PHASES, LEGACY_PROGRAM, GROUPS, GROUP_ORDER, STRENGTH_GROUPS, MAX_MAIN, MAX_CORE,
+    EX, PROGRAM, PHASES, PHASES_CLASSIC, LEGACY_PROGRAM, GROUPS, GROUP_ORDER, STRENGTH_GROUPS, MAX_MAIN, MAX_CORE, MAX_WEEK,
+    LADDERS, LADDER_ORDER, TEMPLATE, BLOCK_TEXT, BASE_SETS, weekInfo, emptyProgress, ladderOf, ladderState, currentExercise, templateDay, evaluateSession, undoLastChanges, adjustLadder, restAfter,
     prescription, dayPlan, estimateMinutes, restFor, buildQueue, sessionPosition,
     localDate, defaultDay, resolveDay, editDay, applyEdit, resetDay, library, alternativesFor,
     normalize, merge, parseImport, emptyState, cleanSetEntry,

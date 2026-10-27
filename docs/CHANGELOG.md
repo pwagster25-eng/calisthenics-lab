@@ -1,5 +1,36 @@
 # Change log
 
+## v4.0 (2026-10-27) — progressive programme: ladders, supersets, circuits, 4-week blocks
+
+User request: "a progressive regime building me up — intensity and difficulty increase with my body and improvement; time can also increase; add circuit training and supersets; you do the research on most effective." Decisions were emailed on 2026-10-25 and the user said "Proceed"; the recommended options were taken: 4 strength days + 2 timed-circuit days + 1 recovery day, a one-tap effort rating, automatic progression with Undo, sessions growing to ~40 min then density, no equipment.
+
+**What the evidence says (and what the app does with it)** — sources are from PubMed; DOIs linked.
+- *More weekly sets → more size and strength, with diminishing returns; frequency helps strength.* Pelland et al., Sports Med 2025 meta-regression of 67 studies ([10.1007/s40279-025-02344-w](https://doi.org/10.1007/s40279-025-02344-w)). → Each movement pattern gets two exposures a week via four full-body days; sets per exercise start at 3 and are *earned* up to a cap (4 in block 1, 5 from block 2).
+- *Training closer to failure matters for muscle size; strength gains are similar across a wide range of reps-in-reserve.* Robinson et al., Sports Med 2024 ([10.1007/s40279-024-02069-2](https://doi.org/10.1007/s40279-024-02069-2)). → Working sets aim for the top of the rep range with reps in reserve (not Max), the last set stays a timed burnout, and the effort rating feeds progression.
+- *Progressive push-up variations build strength comparably to bench pressing.* Kotarsky et al., J Strength Cond Res 2018 RCT ([10.1519/JSC.0000000000002345](https://doi.org/10.1519/JSC.0000000000002345)). → Difficulty progresses by *leverage*, i.e. by climbing a ladder of variations, not by adding load.
+- *Supersets / paired sets give similar adaptations to traditional sets in roughly half the time; alternating with short rest between the two and normal rest after the pair preserves work output.* Mang, Beam & Kravitz, J Strength Cond Res 2025 narrative review ([10.1519/JSC.0000000000005246](https://doi.org/10.1519/JSC.0000000000005246)); Chien et al. 2026 systematic review of paired-set configurations ([10.3390/jfmk11030370](https://doi.org/10.3390/jfmk11030370)); Iversen et al., Sports Med 2021 time-efficient training review ([10.1007/s40279-021-01490-1](https://doi.org/10.1007/s40279-021-01490-1)). → Strength days are two upper/lower supersets (A1/A2, B1/B2): 20 s between the two, the normal 45 s after the pair, 60 s between blocks.
+- *Circuit resistance training improves strength, cardiorespiratory fitness and body composition together.* Ramos-Campo et al. 2021 meta-analysis ([10.1123/japa.2021-0204](https://doi.org/10.1123/japa.2021-0204)). → Tuesday and Thursday are timed whole-body circuits (default 40 s on / 20 s off, 6 stations), replacing the plain walking days; the core finisher is a 3-station circuit.
+- *Periodise and recover.* Standard 4-week waves: three weeks of progression and a deload at ~60 % of the sets with no evaluation.
+
+**Programme (progressive mode, default)**
+- 11 **ladders** (push horizontal, push shoulders/tempo, squat, lunge, hinge ×2, upper back ×2, core front, core side, plank/crawl), each an ordered list of library variations. Starting rungs match the v3 plan (standard push-ups, pike push-ups, bodyweight squats, reverse lunges, glute-bridge march…).
+- **Week template:** Mon A (push-h + squat, upper back + hinge, core circuit), Tue Circuit 1, Wed B (push-b + lunge, upper back B + hinge B, core circuit), Thu Circuit 2, Fri C (push-h + lunge, …), Sat D (push-b + squat, …), Sun recovery. The same exercise never appears twice on one day (a rung collision steps along the ladder).
+- **Blocks:** week → block/week-in-block; core circuit 2 rounds in block 1 then 3; timed circuits 2 rounds in block 1, 3 in block 2, 4 from block 3; deload every 4th week; weeks run to 52.
+- **Progression rule (evaluated when a session ends):** every working set at the top of the range, no set rated Max, burnout ≥ the low end → one more set (to the cap) or, at the cap, the next rung with sets back to 3. Two weak sessions in a row (≥ 2 sets under the low end, or a Max rating with a set under it) → one rung down (or one set fewer at rung 0). Incomplete exercises are not judged. Changes are applied automatically, spoken ("Level up…"), shown in a **Progress earned** card with **Undo**, and logged.
+- **Effort rating:** Easy / Hard / Max buttons on the rest screen for the set just logged (stored as `effort` on the entry; not shown for auto-logged stations).
+- **Timed circuits:** "▶ Start circuit" starts a work timer; each station logs itself (`auto: true`, seconds), rests the fixed interval, and the next station starts on its own; Stop early logs the time done; rounds are announced.
+- **Your ladders** panel: current exercise, rung dots, sets, Easier/Harder nudges (logged as manual).
+- Editing a progressive day turns it into a plain list (no supersets/timed circuit) until reset; ladder set counts still apply to it. Classic 8-week mode remains in Settings → Programme.
+- Settings: Programme mode, timed-circuit work/rest, rests inside a superset / between circuit stations / after a round.
+
+**Engine & storage**
+- `core.js`: `LADDERS`, `TEMPLATE`, `weekInfo`, `templateDay`, block-aware `dayPlan`, interleaving `buildQueue`, `restAfter` (replaces the flat rest rule for blocks), queue-based `estimateMinutes`, `evaluateSession`, `undoLastChanges`, `adjustLadder`; state gains `mode`, `progress {ladders, log}`, `lastChanges`; set entries gain `effort` and `auto`; week keys accept 1–52; session gains `workUntil/workTotal` and new rest kinds. All validated on load; merge keeps the furthest ladder state.
+- 13 new coach clips (circuit start, work, rest, superset, rounds 2–6, level up / volume up / step back, deload week).
+- Service-worker cache v4.0.0.
+- Tests: 20 unit (+3: ladders/template/blocks, rests & estimate, progression rules incl. undo/merge/validation) and 22 browser checks (+2: superset + effort + timed circuit flow; a perfect session earning progressions with the card, Undo, ladder nudge, deload display and the classic switch). Legacy v2/v3 checks run with `mode: 'classic'` pinned, so the fixed programme they describe is still verified unchanged.
+
+**Estimates at defaults:** strength days ≈ 25–26 min in block 1 (supersets are dense), timed circuits ≈ 18–19 min, growing with earned sets and rounds; the 45-minute cap and 40-minute warning are unchanged.
+
 ## v3.1.1 (2026-10-25)
 
 - Estimator recalibrated from a real Friday session: 19 sets with burnouts, warm-up and cool-down in 27:34 against a 31-minute estimate. Ordinary sets now count 1.5 s/rep + 4 s (was 2 s + 6 s); holds +6 s. Strength days now estimate ≈ 29 min at default settings — still slightly conservative on purpose, since the cap warning should err early.

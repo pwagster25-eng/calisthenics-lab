@@ -1,4 +1,4 @@
-# Calisthenics Lab v3.0
+# Calisthenics Lab v4.0
 
 - `app/` — the application (`index.html`, `core.js` pure logic, `figures.js` exercise silhouettes, `sw.js`, `audio/` recorded coach clips + `manifest.json`). Live: https://pwagster25-eng.github.io/calisthenics-lab/app/ (GitHub Pages from this repo).
 - `tools/voice/` — the ElevenLabs clip pipeline (`catalogue.mjs`, `generate.mjs`). Needs `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` in the environment; regenerates only clips whose text changed.

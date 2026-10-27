@@ -1,5 +1,13 @@
 # Testing evidence, limitations, and iPhone QA checklist
 
+## v4.0 results (2026-10-27) — unit 20 / 20, browser 22 / 22 (Playwright 1.56 / Chromium, iPhone 14 viewport, fake clock)
+
+New unit tests: 18 ladders & template (ids exist, no duplicates in a day, interleaved queue A1 A2 A1 A2…, rounds by block, deload sets, week 52 clamp, rung-collision handling); 19 rests & estimate (20 s A1→A2, 45 s after the pair, 60 s between blocks, 15/45 s core circuit, interval rests, Monday ≈ 26 min, classic plan unchanged); 20 progression (set → rung → top, Max blocks, burnout below range blocks, incomplete not judged, two weak sessions step back, fewer sets at rung 0, fail counter resets, deload/classic never evaluate, manual nudge, storage round-trip, invalid progress rejected, merge keeps the furthest state, plain-list days take ladder sets).
+New browser checks: H1 superset flow with 20 s / 45 s rests, effort rating stored, timed circuit auto-logging, auto-start of the next station, Stop early; H2 a perfect Monday earns 7 progressions, progress card + Undo, Harder nudge persists, deload week shows 2 sets, classic switch.
+Screenshots: `tests/screenshots/v4-01-plan-supersets.png`, `v4-02-ladders.png`, `v4-03-superset-rest-effort.png`, `v4-04-timed-circuit.png`.
+
+Device checks to add (v4): 29. Superset pacing on the phone — is 20 s enough to change position between A1 and A2? 30. Timed circuit: stations start themselves after the 20 s rest without touching the screen; the round announcement plays. 31. Effort buttons are tappable with sweaty hands during a 20 s rest. 32. After a full strength session, confirm the Progress earned card appears and the spoken line matches it.
+
 ## 0. v3.0 results (2026-10-25, Node 22.22, Playwright 1.56 / Chromium; browser suite run 3× after the final change, 20/20 each time)
 
 ### Unit tests — `node --test tests/unit.test.js` → **17 / 17 pass** (the 11 below plus:)

@@ -16,7 +16,8 @@ async function step(name, fn) {
 
 // Settings that reproduce the v2.0 flow (no warm-up/cool-down/burnout, 2 sets) for the state-machine tests.
 const LEGACY = { extraSets: 0, burnoutOn: false, warmupSeconds: 0, cooldownSeconds: 0, quotesOn: false };
-const seedSettings = (page, extra) => page.evaluate((s) => { const cur = JSON.parse(localStorage.getItem('calisthenics-v2') || '{"schemaVersion":2}'); cur.settings = Object.assign({}, cur.settings || {}, s); localStorage.setItem('calisthenics-v2', JSON.stringify(cur)); }, Object.assign({}, LEGACY, extra || {}));
+const seedSettings = (page, extra) => page.evaluate((s) => { const cur = JSON.parse(localStorage.getItem('calisthenics-v2') || '{"schemaVersion":2}'); cur.settings = Object.assign({}, cur.settings || {}, s); cur.mode = 'classic'; localStorage.setItem('calisthenics-v2', JSON.stringify(cur)); }, Object.assign({}, LEGACY, extra || {}));
+const seedClassic = page => page.evaluate(() => { const cur = JSON.parse(localStorage.getItem('calisthenics-v2') || '{"schemaVersion":3}'); cur.mode = 'classic'; localStorage.setItem('calisthenics-v2', JSON.stringify(cur)); });
 
 const V1_SEED = {
   done: { '1-0': true }, checks: {}, prs: { 1: 22 },
@@ -196,7 +197,7 @@ const V1_SEED = {
     await page.click('#endSession'); await page.clock.runFor(300);
   });
   await step('v2.1: warm-up → sets → burnout timer → cool-down → done, with how-to and quotes', async () => {
-    await page.evaluate(() => localStorage.clear());
+    await page.evaluate(() => localStorage.clear()); await seedClassic(page);
     await page.goto(BASE + '/app/index.html?nosw'); await page.clock.runFor(600);
     await page.click('#startSession'); await page.clock.runFor(600);
     assert.ok(await page.isVisible('#phTimer'), 'warm-up timer shown');
@@ -274,7 +275,7 @@ const V1_SEED = {
   });
   /* ---------- G. v3: editable programme, library picker, figures, recorded coach ---------- */
   await step('v3: swap an exercise for today only — plan updates, badge shows, logs key by the new id, and it expires tomorrow', async () => {
-    await page.goto(BASE + '/app/index.html?nosw'); await page.evaluate(() => localStorage.clear()); await page.reload();
+    await page.goto(BASE + '/app/index.html?nosw'); await page.evaluate(() => localStorage.clear()); await seedClassic(page); await page.reload();
     const T0 = Date.parse('2026-10-26T15:00:00'); await page.clock.install({ time: T0 }); // local-time date rolls over at midnight
     await page.click('#editDay');
     assert.equal(await page.evaluate(() => window.__cl.editing), true);
@@ -299,7 +300,7 @@ const V1_SEED = {
     assert.equal(await page.textContent('#dayBadges'), '');
   });
   await step('v3: permanent edits (swap, add, move, remove) persist across reload; reset restores the default; a session blocks editing', async () => {
-    await page.goto(BASE + '/app/index.html?nosw'); await page.evaluate(() => localStorage.clear()); await page.reload();
+    await page.goto(BASE + '/app/index.html?nosw'); await page.evaluate(() => localStorage.clear()); await seedClassic(page); await page.reload();
     await page.click('#editDay');
     await page.click('#moves .ex:nth-child(2) .editbar button:nth-child(3)');
     await page.click('#libList .lib:has-text("Sumo squats")'); await page.click('#libPlan');
@@ -323,7 +324,7 @@ const V1_SEED = {
     assert.match(await page.textContent('#toast'), /End the guided session/);
   });
   await step('v3: recorded coach — manifest loads, cues are queued as clip ids with text fallbacks, quotes fit the rest, device mode bypasses clips', async () => {
-    await page.goto(BASE + '/app/index.html?nosw'); await page.evaluate(() => localStorage.clear()); await page.reload();
+    await page.goto(BASE + '/app/index.html?nosw'); await page.evaluate(() => localStorage.clear()); await seedClassic(page); await page.reload();
     await page.waitForFunction(() => window.__cl.Coach.clips && Object.keys(window.__cl.Coach.clips).length > 500);
     const T0 = Date.parse('2026-10-26T15:00:00'); await page.clock.install({ time: T0 });
     await page.click('#startSession'); await page.clock.runFor(300);
@@ -351,16 +352,88 @@ const V1_SEED = {
     assert.ok(typeof wa[2] === 'number' && wa[2] > 0.3 && wa[2] < 2, 'decoded "Go!" clip: ' + wa[2]); assert.ok(wa[3] >= 1, 'decoded buffers are cached');
     await page.click('#endSession');
   });
+  /* ---------- H. v4: progressive programme ---------- */
+  await step('v4: Monday is supersets + core circuit; A1→A2 rest is 20 s, after the pair 45 s; effort rating is stored; interval day auto-logs stations', async () => {
+    await page.goto(BASE + '/app/index.html?nosw'); await page.evaluate(() => localStorage.clear()); await page.reload();
+    assert.match(await page.textContent('#phase'), /Block 1, week 1 of 4/);
+    assert.equal(await page.locator('#ladders .ladder').count(), 11, 'ladders panel');
+    const tags = await page.evaluate(() => Array.from(document.querySelectorAll('#moves .tagchip, #core .tagchip')).map(e => e.textContent));
+    assert.deepEqual(tags, ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'C3']);
+    assert.match(await page.textContent('#moves .blockhead'), /Superset A/);
+    const T0 = Date.parse('2026-10-27T18:00:00'); await page.clock.install({ time: T0 });
+    await page.click('#startSession'); await page.clock.runFor(300); await page.click('#timerSkip'); await page.clock.runFor(700);
+    assert.match(await page.textContent('#wSet'), /Superset A1 • Set 1 of 3/);
+    await page.click('#logSet'); await page.clock.runFor(300);
+    assert.equal((await page.textContent('#rClock')).trim(), '00:20'); assert.match(await page.textContent('#rLabel'), /Superset/);
+    assert.deepEqual(await page.evaluate(() => window.__cl.Coach.last), ['logged', 'superset', 'next_bodyweight-squats']);
+    assert.ok(await page.isVisible('#effortRow')); await page.click('[data-effort="m"]');
+    const eff = await page.evaluate(() => window.__cl.state.sets['1-0-standard-push-ups'][0].effort); assert.equal(eff, 'm');
+    await page.clock.runFor(21000); assert.match(await page.textContent('#wSet'), /Superset A2 • Set 1 of 3/); assert.match(await page.textContent('#wName'), /Bodyweight squats/);
+    await page.click('#logSet'); await page.clock.runFor(300); assert.equal((await page.textContent('#rClock')).trim(), '00:45');
+    await page.clock.runFor(46000); assert.match(await page.textContent('#wSet'), /Superset A1 • Set 2 of 3/);
+    await page.click('#endSession'); await page.clock.runFor(300);
+    // Tuesday: timed circuit
+    await page.click('#days button:nth-child(2)'); await page.clock.runFor(200);
+    assert.match(await page.textContent('#dayBadges'), /2 rounds • 40\/20 s/);
+    await page.click('#startSession'); await page.clock.runFor(300); await page.click('#timerSkip'); await page.clock.runFor(700);
+    assert.equal((await page.textContent('#burnStart')).trim(), '▶ Start circuit'); assert.ok(!(await page.isVisible('#logSet')));
+    await page.click('#burnStart'); await page.clock.runFor(500);
+    assert.match(await page.textContent('#tLabel'), /Work • round 1 of 2/); assert.equal((await page.textContent('#tClock')).trim(), '00:40');
+    await page.clock.runFor(40500);
+    const st1 = await page.evaluate(() => ({ s: window.__cl.state.sets['1-1-jumping-jacks'], rest: document.getElementById('rClock').textContent, lbl: document.getElementById('rLabel').textContent }));
+    assert.deepEqual(st1.s.map(e => [e.reps, e.unit, e.auto]), [[40, 'sec', true]]); assert.match(st1.lbl, /next station/); assert.equal(st1.rest.trim(), '00:20');
+    assert.ok(!(await page.isVisible('#effortRow')), 'no effort rating for an auto-logged station');
+    await page.clock.runFor(20500);
+    assert.match(await page.textContent('#tName'), /Bodyweight squats/, 'next station started itself');
+    assert.equal(await page.evaluate(() => document.getElementById('session').className), 'show burn');
+    await page.click('#timerStop'); await page.clock.runFor(400);
+    const st2 = await page.evaluate(() => window.__cl.state.sets['1-1-bodyweight-squats']); assert.equal(st2.length, 1); assert.ok(st2[0].reps >= 1 && st2[0].reps < 40, 'stopped early logs the time done');
+    await page.click('#endSession');
+  });
+  await step('v4: a perfect session earns progressions (set, then rung), the progress card shows them with Undo, and ladders can be nudged', async () => {
+    await page.goto(BASE + '/app/index.html?nosw'); await page.evaluate(() => localStorage.clear()); await page.reload();
+    const T0 = Date.parse('2026-10-27T18:00:00'); await page.clock.install({ time: T0 });
+    await page.click('#startSession'); await page.clock.runFor(300); await page.click('#timerSkip'); await page.clock.runFor(700);
+    // log every set at the top of the range through the engine, skipping rests
+    for (let i = 0; i < 40; i++) {
+      const st = await page.evaluate(() => { const s = window.__cl.state.session; const pos = window.__cl.__pos(); return { done: pos.done, rest: !!(s && s.restUntil), burn: !!(s && s.burnUntil), pending: !!(pos.current && pos.current.burnout && !s.burnReady), hi: pos.current && pos.current.item.hi, cur: pos.current && pos.current.item.id, setNo: pos.current && pos.current.setNo, work: !!(s && s.workUntil) }; });
+      if (st.done) break;
+      if (st.rest) { await page.click('#skipRest'); await page.clock.runFor(600); continue; }
+      if (st.pending) { await page.click('#burnLogInstead'); await page.clock.runFor(600); }
+      await page.evaluate(hi => { for (let k = 0; k < 60; k++) document.getElementById('repPlus').click(); }, st.hi); // draft well above hi
+      await page.click('#logSet'); await page.clock.runFor(600);
+    }
+    assert.equal(await page.evaluate(() => window.__cl.__pos().done), true, 'all sets logged');
+    await page.clock.runFor(130000); // cool-down
+    await page.click('#doneBtn'); await page.clock.runFor(300);
+    const after = await page.evaluate(() => ({ lc: window.__cl.state.lastChanges, L: window.__cl.state.progress.ladders, last: window.__cl.Coach.last }));
+    assert.ok(after.lc && after.lc.changes.length === 7, 'every ladder on the day progressed: ' + JSON.stringify(after.lc && after.lc.changes.map(c => c.type)));
+    assert.ok(after.lc.changes.every(c => c.type === 'set')); assert.equal(after.L['push-h'].sets, 4); assert.equal(after.L['core-a'].sets, 4);
+    assert.deepEqual(after.last, ['progress_set']);
+    assert.ok(await page.isVisible('#progressCard')); assert.match(await page.textContent('#progressCard'), /4 sets next time/);
+    assert.match(await page.textContent('#moves .ex:nth-child(2) .rx'), /^4 × /, 'Monday now shows 4 sets');
+    await page.click('#progressCard button:nth-child(1)'); // Undo
+    assert.equal(await page.evaluate(() => window.__cl.state.progress.ladders['push-h'].sets), 3); assert.ok(!(await page.isVisible('#progressCard')));
+    await page.click('#ladders .ladder:nth-child(1) .btns button:nth-child(2)'); // Harder on push-h
+    assert.match(await page.textContent('#ladders .ladder:nth-child(1)'), /Close-grip push-ups/); assert.match(await page.textContent('#moves .ex:nth-child(2) .name'), /Close-grip push-ups/);
+    await page.reload(); assert.match(await page.textContent('#moves .ex:nth-child(2) .name'), /Close-grip push-ups/, 'persisted');
+    // deload week: fewer sets, no evaluation banner text
+    await page.selectOption('#week', '4'); await page.clock.runFor(200); assert.match(await page.textContent('#dayBadges'), /Deload week/); assert.match(await page.textContent('#moves .ex:nth-child(2) .rx'), /^2 × /);
+    // classic mode switch restores the fixed plan
+    await page.click('#openSettings'); await page.selectOption('#mode', 'classic'); await page.click('#closeSettings'); await page.clock.runFor(200);
+    assert.equal(await page.locator('#moves .tagchip').count(), 0); assert.ok(!(await page.isVisible('#laddersPanel')));
+  });
+
   await step('v3: service worker precaches the shell and the essential clips (not the long ones) and serves audio cache-first', async () => {
     await page.goto(BASE + '/app/index.html');
     const info = await page.evaluate(async () => {
       const reg = await navigator.serviceWorker.ready;
       for (let i = 0; i < 60; i++) { const a = await caches.open('calisthenics-lab-audio-v1'); if ((await a.keys()).length >= 294) break; await new Promise(r => setTimeout(r, 500)); }
       const keys = await caches.keys(); const a = await caches.open('calisthenics-lab-audio-v1'); const ak = (await a.keys()).map(r => r.url);
-      const c = await caches.open('calisthenics-lab-v3.1.1'); const ck = (await c.keys()).map(r => r.url);
+      const c = await caches.open('calisthenics-lab-v4.0.0'); const ck = (await c.keys()).map(r => r.url);
       return { keys, audio: ak.length, essential: ak.filter(u => /\/(ex|next|cue|rest|set)_/.test(u)).length, how: ak.filter(u => /\/how_/.test(u)).length, shell: ck.some(u => /figures\.js/.test(u)) && ck.some(u => /manifest\.json/.test(u)), scope: reg.scope };
     });
-    assert.ok(info.keys.includes('calisthenics-lab-v3.1.1') && info.keys.includes('calisthenics-lab-audio-v1'), JSON.stringify(info));
+    assert.ok(info.keys.includes('calisthenics-lab-v4.0.0') && info.keys.includes('calisthenics-lab-audio-v1'), JSON.stringify(info));
     assert.ok(info.shell, 'shell assets cached');
     assert.ok(info.essential >= 290, 'essential clips cached: ' + info.essential);
   });
